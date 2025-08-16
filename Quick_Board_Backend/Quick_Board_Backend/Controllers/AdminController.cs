@@ -20,75 +20,127 @@ namespace Quick_Board_Backend.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<Admin>> GetAdmin(int id)
         {
-            var admin = await _context.Admins.FindAsync(id);
-            if (admin == null)
+            try
             {
-                return NotFound();
+                var admin = await _context.Admins.FindAsync(id);
+                if (admin == null)
+                {
+                    return NotFound(new { message = $"Admin with ID {id} not found" });
+                }
+                return Ok(admin);
             }
-            return admin;
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Database error occurred", error = ex.Message });
+            }
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Admin>>> GetAllAdmin()
         {
-            var admins = await _context.Admins.ToListAsync();
-
-            if (admins.Count == 0)
+            try
             {
-                return NoContent(); // 204 - no data
+                var admins = await _context.Admins.ToListAsync();
+                if (admins.Count == 0)
+                {
+                    return NoContent(); // 204 - no data
+                }
+                return Ok(admins); // 200 - return list
             }
-
-            return Ok(admins); // 200 - return list
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Database error occurred", error = ex.Message });
+            }
         }
 
         // POST: api/Admin
         [HttpPost]
-        public async Task<ActionResult<Admin>> AddAdmin(Admin admin)
+        public async Task<ActionResult<Admin>> AddAdmin([FromBody] Admin admin)
         {
-            _context.Admins.Add(admin);
-            await _context.SaveChangesAsync();
+            if (!ModelState.IsValid)
+                return BadRequest(new { message = "Invalid admin data", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
-            return CreatedAtAction(nameof(GetAdmin), new { id = admin.AdminId }, admin);
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                _context.Admins.Add(admin);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return CreatedAtAction(nameof(GetAdmin), new { id = admin.AdminId }, admin);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { message = "Error saving admin to database", error = ex.Message });
+            }
         }
 
         // PUT: api/Admin/{id}
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateAdmin(int id, Admin updateAdmin)
+        public async Task<IActionResult> UpdateAdmin(int id, [FromBody] Admin updateAdmin)
         {
             if (id != updateAdmin.AdminId)
             {
-                return BadRequest();
+                return BadRequest(new { message = "Admin ID in URL does not match ID in body" });
             }
 
-            _context.Entry(updateAdmin).State = EntityState.Modified;
+            if (!ModelState.IsValid)
+                return BadRequest(new { message = "Invalid admin data", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
 
+            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
+                // First check if the admin exists
+                var existingAdmin = await _context.Admins.FindAsync(id);
+                if (existingAdmin == null)
+                    return NotFound(new { message = $"Admin with ID {id} not found" });
+
+                // Update properties safely
+                _context.Entry(existingAdmin).CurrentValues.SetValues(updateAdmin);
+
                 await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new { message = "Admin updated successfully", admin = existingAdmin });
             }
             catch (DbUpdateConcurrencyException)
             {
+                await transaction.RollbackAsync();
                 if (!_context.Admins.Any(a => a.AdminId == id))
-                    return NotFound();
-                else
-                    throw;
-            }
+                    return NotFound(new { message = $"Admin with ID {id} not found" });
 
-            return NoContent();
+                return Conflict(new { message = "The admin was modified by another process. Please reload and try again." });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { message = "Database error occurred while updating", error = ex.Message });
+            }
         }
 
         // DELETE: api/Admin/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteAdmin(int id)
         {
-            var admin = await _context.Admins.FindAsync(id);
-            if (admin == null)
-                return NotFound();
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var admin = await _context.Admins.FindAsync(id);
+                if (admin == null)
+                    return NotFound(new { message = $"Admin with ID {id} not found" });
 
-            _context.Admins.Remove(admin);
-            await _context.SaveChangesAsync();
+                _context.Admins.Remove(admin);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
 
-            return NoContent();
+                return Ok(new { message = "Admin deleted successfully" });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { message = "Error deleting admin from database", error = ex.Message });
+            }
         }
     }
 }
