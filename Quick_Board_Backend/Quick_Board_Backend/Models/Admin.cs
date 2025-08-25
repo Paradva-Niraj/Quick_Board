@@ -7,6 +7,7 @@ namespace Quick_Board_Backend.Models
     public class Admin
     {
         [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int AdminId { get; set; }
         [Required]
         public string AdminName { get; set; }

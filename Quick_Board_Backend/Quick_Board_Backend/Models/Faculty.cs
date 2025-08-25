@@ -1,8 +1,10 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Security.Permissions;
 
 namespace Quick_Board_Backend.Models
 {
+    [Table("faculty")]
     public class Faculty
     {
         [Key]
@@ -13,10 +15,8 @@ namespace Quick_Board_Backend.Models
         public string FacultyMail { get; set; }
         [Required]
         public string FacultyPassword { get; set; }
-        [Required]
-        public int AddedBy { get; set; }
-        [Required]
-        public Boolean RequestStatus { get; set; }
+        public int? AddedBy { get; set; }
+        public Boolean RequestStatus { get; set; } = false;
 
     }
 }
