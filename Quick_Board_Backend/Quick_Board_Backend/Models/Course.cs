@@ -7,7 +7,9 @@ namespace Quick_Board_Backend.Models
     public class Course
     {
         [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.None)] // 👈 prevents auto increment
         public int CourseId { get; set; }
+
         [Required]
         public string CourseName { get; set; }
     }

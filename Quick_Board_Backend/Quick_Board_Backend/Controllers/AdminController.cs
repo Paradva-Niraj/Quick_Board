@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Quick_Board_Backend.Data;
 using Quick_Board_Backend.Models;
+using Quick_Board_Backend.DTOs;
 using Microsoft.EntityFrameworkCore;
 
 namespace Quick_Board_Backend.Controllers
@@ -18,129 +19,92 @@ namespace Quick_Board_Backend.Controllers
 
         // GET: api/Admin/{id}
         [HttpGet("{id}")]
-        public async Task<ActionResult<Admin>> GetAdmin(int id)
+        public async Task<ActionResult<AdminReadDto>> GetAdmin(int id)
         {
-            try
+            var admin = await _context.Admins.FindAsync(id);
+            if (admin == null)
+                return NotFound(new { message = $"Admin with ID {id} not found" });
+
+            return Ok(new AdminReadDto
             {
-                var admin = await _context.Admins.FindAsync(id);
-                if (admin == null)
-                {
-                    return NotFound(new { message = $"Admin with ID {id} not found" });
-                }
-                return Ok(admin);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Database error occurred", error = ex.Message });
-            }
+                AdminId = admin.AdminId,
+                AdminName = admin.AdminName,
+                AdminMail = admin.AdminMail
+            });
         }
 
+        // GET: api/Admin
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Admin>>> GetAllAdmin()
+        public async Task<ActionResult<IEnumerable<AdminReadDto>>> GetAllAdmin()
         {
-            try
-            {
-                var admins = await _context.Admins.ToListAsync();
-                if (admins.Count == 0)
+            var admins = await _context.Admins
+                .Select(a => new AdminReadDto
                 {
-                    return NoContent(); // 204 - no data
-                }
-                return Ok(admins); // 200 - return list
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Database error occurred", error = ex.Message });
-            }
+                    AdminId = a.AdminId,
+                    AdminName = a.AdminName,
+                    AdminMail = a.AdminMail
+                })
+                .ToListAsync();
+
+            if (!admins.Any())
+                return NoContent();
+
+            return Ok(admins);
         }
 
         // POST: api/Admin
         [HttpPost]
-        public async Task<ActionResult<Admin>> AddAdmin([FromBody] Admin admin)
+        public async Task<ActionResult<AdminReadDto>> AddAdmin([FromBody] AdminCreateDto dto)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(new { message = "Invalid admin data", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
-
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
+            var admin = new Admin
             {
-                _context.Admins.Add(admin);
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
+                AdminName = dto.AdminName,
+                AdminMail = dto.AdminMail,
+                AdminPassword = dto.AdminPassword
+            };
 
-                return CreatedAtAction(nameof(GetAdmin), new { id = admin.AdminId }, admin);
-            }
-            catch (Exception ex)
+            _context.Admins.Add(admin);
+            await _context.SaveChangesAsync(); // ✅ DB generates AdminId
+
+            var result = new AdminReadDto
             {
-                await transaction.RollbackAsync();
-                return StatusCode(500, new { message = "Error saving admin to database", error = ex.Message });
-            }
+                AdminId = admin.AdminId,
+                AdminName = admin.AdminName,
+                AdminMail = admin.AdminMail
+            };
+
+            return CreatedAtAction(nameof(GetAdmin), new { id = result.AdminId }, result);
         }
 
         // PUT: api/Admin/{id}
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateAdmin(int id, [FromBody] Admin updateAdmin)
+        public async Task<IActionResult> UpdateAdmin(int id, [FromBody] AdminCreateDto dto)
         {
-            if (id != updateAdmin.AdminId)
-            {
-                return BadRequest(new { message = "Admin ID in URL does not match ID in body" });
-            }
+            var existingAdmin = await _context.Admins.FindAsync(id);
+            if (existingAdmin == null)
+                return NotFound(new { message = $"Admin with ID {id} not found" });
 
-            if (!ModelState.IsValid)
-                return BadRequest(new { message = "Invalid admin data", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+            existingAdmin.AdminName = dto.AdminName;
+            existingAdmin.AdminMail = dto.AdminMail;
+            existingAdmin.AdminPassword = dto.AdminPassword;
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                // First check if the admin exists
-                var existingAdmin = await _context.Admins.FindAsync(id);
-                if (existingAdmin == null)
-                    return NotFound(new { message = $"Admin with ID {id} not found" });
+            await _context.SaveChangesAsync();
 
-                // Update properties safely
-                _context.Entry(existingAdmin).CurrentValues.SetValues(updateAdmin);
-
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                return Ok(new { message = "Admin updated successfully", admin = existingAdmin });
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                await transaction.RollbackAsync();
-                if (!_context.Admins.Any(a => a.AdminId == id))
-                    return NotFound(new { message = $"Admin with ID {id} not found" });
-
-                return Conflict(new { message = "The admin was modified by another process. Please reload and try again." });
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                return StatusCode(500, new { message = "Database error occurred while updating", error = ex.Message });
-            }
+            return Ok(new { message = "Admin updated successfully" });
         }
 
         // DELETE: api/Admin/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteAdmin(int id)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var admin = await _context.Admins.FindAsync(id);
-                if (admin == null)
-                    return NotFound(new { message = $"Admin with ID {id} not found" });
+            var admin = await _context.Admins.FindAsync(id);
+            if (admin == null)
+                return NotFound(new { message = $"Admin with ID {id} not found" });
 
-                _context.Admins.Remove(admin);
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
+            _context.Admins.Remove(admin);
+            await _context.SaveChangesAsync();
 
-                return Ok(new { message = "Admin deleted successfully" });
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                return StatusCode(500, new { message = "Error deleting admin from database", error = ex.Message });
-            }
+            return Ok(new { message = "Admin deleted successfully" });
         }
     }
 }

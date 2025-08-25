@@ -15,6 +15,7 @@ namespace Quick_Board_Backend.Models
         public string FacultyMail { get; set; }
         [Required]
         public string FacultyPassword { get; set; }
+        [ForeignKey("admin")]
         public int? AddedBy { get; set; }
         public Boolean RequestStatus { get; set; } = false;
 
