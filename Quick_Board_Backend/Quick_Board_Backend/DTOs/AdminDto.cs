@@ -1,6 +1,6 @@
 ﻿namespace Quick_Board_Backend.DTOs
 {
-    // Request DTO (no ID here)
+    // Input when creating admin
     public class AdminCreateDto
     {
         public string AdminName { get; set; }
@@ -8,7 +8,7 @@
         public string AdminPassword { get; set; }
     }
 
-    // Response DTO (hides password, shows ID)
+    // Output (don't show password)
     public class AdminReadDto
     {
         public int AdminId { get; set; }

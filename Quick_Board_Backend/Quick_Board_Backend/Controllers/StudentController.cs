@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Quick_Board_Backend.Data;
 using Quick_Board_Backend.Models;
 using Quick_Board_Backend.DTOs;
+using Microsoft.AspNetCore.Identity;
+
 
 namespace Quick_Board_Backend.Controllers
 {
@@ -25,15 +27,18 @@ namespace Quick_Board_Backend.Controllers
             if (course == null)
                 return NotFound(new { message = $"Course with ID {dto.StudentCourseId} not found" });
 
+            // ✅ Hash password using Identity's PasswordHasher
+            var passwordHasher = new PasswordHasher<Student>();
             var student = new Student
             {
                 StudentName = dto.StudentName,
                 StudentMail = dto.StudentMail,
-                StudentPassword = dto.StudentPassword,
                 StudentCourseId = dto.StudentCourseId,
                 RequestStatus = false,
                 ApprovedBy = null
-            };  
+            };
+
+            student.StudentPassword = passwordHasher.HashPassword(student, dto.StudentPassword);
 
             try
             {
@@ -61,6 +66,7 @@ namespace Quick_Board_Backend.Controllers
                 return StatusCode(500, new { message = "Error saving student", error = ex.Message });
             }
         }
+
 
         // GET: api/Student
         [HttpGet]

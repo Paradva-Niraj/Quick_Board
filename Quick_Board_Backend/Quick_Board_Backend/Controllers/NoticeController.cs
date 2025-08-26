@@ -17,183 +17,180 @@ namespace Quick_Board_Backend.Controllers
             _context = context;
         }
 
-        // GET: api/Notice?isPinned=true&priority=high&authorType=Faculty&authorId=3
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<NoticeReadDto>>> GetAll(
-            [FromQuery] bool? isPinned,
-            [FromQuery] string? priority,
-            [FromQuery] string? authorType,
-            [FromQuery] int? authorId)
-        {
-            var query = _context.Notices.AsQueryable();
-
-            if (isPinned.HasValue) query = query.Where(n => n.IsPinned == isPinned.Value);
-            if (!string.IsNullOrWhiteSpace(priority)) query = query.Where(n => n.Priority == priority);
-            if (!string.IsNullOrWhiteSpace(authorType)) query = query.Where(n => n.AuthorType == authorType);
-            if (authorId.HasValue) query = query.Where(n => n.NoticeWrittenBy == authorId.Value);
-
-            var items = await query
-                .OrderByDescending(n => n.PublishedAt)
-                .Select(n => new NoticeReadDto
-                {
-                    NoticeId = n.NoticeId,
-                    NoticeTitle = n.NoticeTitle,
-                    NoticeDescription = n.NoticeDescription,
-                    PublishedAt = n.PublishedAt,
-                    NoticeWrittenBy = n.NoticeWrittenBy,
-                    AuthorType = n.AuthorType,
-                    Image = n.Image,
-                    File = n.File,
-                    IsPinned = n.IsPinned,
-                    Priority = n.Priority
-                })
-                .ToListAsync();
-
-            if (items.Count == 0) return NoContent();
-            return Ok(items);
-        }
-
-        // GET: api/Notice/123
-        [HttpGet("{id:long}")]
-        public async Task<ActionResult<NoticeReadDto>> GetOne(long id)
-        {
-            var n = await _context.Notices.FindAsync(id);
-            if (n == null) return NotFound(new { message = $"Notice {id} not found" });
-
-            return Ok(new NoticeReadDto
-            {
-                NoticeId = n.NoticeId,
-                NoticeTitle = n.NoticeTitle,
-                NoticeDescription = n.NoticeDescription,
-                PublishedAt = n.PublishedAt,
-                NoticeWrittenBy = n.NoticeWrittenBy,
-                AuthorType = n.AuthorType,
-                Image = n.Image,
-                File = n.File,
-                IsPinned = n.IsPinned,
-                Priority = n.Priority
-            });
-        }
-
         // POST: api/Notice
         [HttpPost]
-        public async Task<ActionResult<NoticeReadDto>> Create([FromBody] NoticeCreateDto dto)
+        public async Task<ActionResult<NoticeReadDto>> CreateNotice([FromBody] NoticeCreateDto dto)
         {
-            // basic validation
-            if (string.IsNullOrWhiteSpace(dto.NoticeTitle))
-                return BadRequest(new { message = "NoticeTitle is required" });
-            if (string.IsNullOrWhiteSpace(dto.NoticeDescription))
-                return BadRequest(new { message = "NoticeDescription is required" });
-            if (string.IsNullOrWhiteSpace(dto.AuthorType) ||
-                !(dto.AuthorType == "Admin" || dto.AuthorType == "Faculty"))
-                return BadRequest(new { message = "AuthorType must be 'Admin' or 'Faculty'" });
-
-            // verify author exists in the correct table
-            bool authorExists = dto.AuthorType == "Admin"
-                ? await _context.Admins.AnyAsync(a => a.AdminId == dto.NoticeWrittenBy)
-                : await _context.Faculties.AnyAsync(f => f.FacultyId == dto.NoticeWrittenBy);
-
-            if (!authorExists)
-                return NotFound(new { message = $"Author (type {dto.AuthorType}) with id {dto.NoticeWrittenBy} not found" });
-
-            var entity = new Notice
+            // Validate Author exists
+            if (dto.AuthorType == "Admin")
             {
-                NoticeTitle = dto.NoticeTitle.Trim(),
+                var adminExists = await _context.Admins.AnyAsync(a => a.AdminId == dto.NoticeWrittenBy);
+                if (!adminExists)
+                    return BadRequest(new { message = "Admin not found" });
+            }
+            else if (dto.AuthorType == "Faculty")
+            {
+                var facultyExists = await _context.Faculties.AnyAsync(f => f.FacultyId == dto.NoticeWrittenBy);
+                if (!facultyExists)
+                    return BadRequest(new { message = "Faculty not found" });
+            }
+            else
+            {
+                return BadRequest(new { message = "AuthorType must be 'Admin' or 'Faculty'" });
+            }
+
+            var notice = new Notice
+            {
+                NoticeTitle = dto.NoticeTitle,
                 NoticeDescription = dto.NoticeDescription,
-                PublishedAt = DateTime.UtcNow,
                 NoticeWrittenBy = dto.NoticeWrittenBy,
                 AuthorType = dto.AuthorType,
                 Image = dto.Image,
                 File = dto.File,
-                IsPinned = dto.IsPinned ?? false,
-                Priority = dto.Priority
+                IsPinned = dto.IsPinned,
+                Priority = dto.Priority,
+                PublishedAt = DateTime.UtcNow
             };
 
             try
             {
-                _context.Notices.Add(entity);
+                _context.Notices.Add(notice);
                 await _context.SaveChangesAsync();
 
-                var result = new NoticeReadDto
+                // Get author name for response
+                string authorName = "";
+                if (dto.AuthorType == "Admin")
                 {
-                    NoticeId = entity.NoticeId,
-                    NoticeTitle = entity.NoticeTitle,
-                    NoticeDescription = entity.NoticeDescription,
-                    PublishedAt = entity.PublishedAt,
-                    NoticeWrittenBy = entity.NoticeWrittenBy,
-                    AuthorType = entity.AuthorType,
-                    Image = entity.Image,
-                    File = entity.File,
-                    IsPinned = entity.IsPinned,
-                    Priority = entity.Priority
-                };
+                    var admin = await _context.Admins.FindAsync(dto.NoticeWrittenBy);
+                    authorName = admin?.AdminName ?? "Unknown Admin";
+                }
+                else
+                {
+                    var faculty = await _context.Faculties.FindAsync(dto.NoticeWrittenBy);
+                    authorName = faculty?.FacultyName ?? "Unknown Faculty";
+                }
 
-                return CreatedAtAction(nameof(GetOne), new { id = result.NoticeId }, result);
+                return Ok(new
+                {
+                    message = "Notice created successfully",
+                    notice = new NoticeReadDto
+                    {
+                        NoticeId = notice.NoticeId,
+                        NoticeTitle = notice.NoticeTitle,
+                        NoticeDescription = notice.NoticeDescription,
+                        PublishedAt = notice.PublishedAt,
+                        NoticeWrittenBy = notice.NoticeWrittenBy,
+                        AuthorType = notice.AuthorType,
+                        AuthorName = authorName,
+                        Image = notice.Image,
+                        File = notice.File,
+                        IsPinned = notice.IsPinned,
+                        Priority = notice.Priority
+                    }
+                });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Error saving notice", error = ex.Message });
+                return StatusCode(500, new { message = "Error creating notice", error = ex.Message });
             }
         }
 
-        // PUT: api/Notice/123
-        [HttpPut("{id:long}")]
-        public async Task<IActionResult> Update(long id, [FromBody] NoticeUpdateDto dto)
+        // GET: api/Notice
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<NoticeReadDto>>> GetAllNotices()
         {
-            var n = await _context.Notices.FindAsync(id);
-            if (n == null) return NotFound(new { message = $"Notice {id} not found" });
+            var notices = await _context.Notices
+                .OrderByDescending(n => n.IsPinned)  // Pinned first
+                .ThenByDescending(n => n.PublishedAt) // Then by newest
+                .ToListAsync();
 
-            // Apply changes if provided
-            if (!string.IsNullOrWhiteSpace(dto.NoticeTitle)) n.NoticeTitle = dto.NoticeTitle.Trim();
-            if (!string.IsNullOrWhiteSpace(dto.NoticeDescription)) n.NoticeDescription = dto.NoticeDescription;
-            if (dto.Image != null) n.Image = dto.Image;
-            if (dto.File != null) n.File = dto.File;
-            if (dto.IsPinned.HasValue) n.IsPinned = dto.IsPinned.Value;
-            if (!string.IsNullOrWhiteSpace(dto.Priority)) n.Priority = dto.Priority;
+            if (notices.Count == 0)
+                return NoContent();
 
-            try
+            var result = new List<NoticeReadDto>();
+
+            foreach (var notice in notices)
             {
-                await _context.SaveChangesAsync();
-                return Ok(new { message = "Notice updated successfully" });
+                string authorName = "";
+                if (notice.AuthorType == "Admin")
+                {
+                    var admin = await _context.Admins.FindAsync(notice.NoticeWrittenBy);
+                    authorName = admin?.AdminName ?? "Unknown Admin";
+                }
+                else if (notice.AuthorType == "Faculty")
+                {
+                    var faculty = await _context.Faculties.FindAsync(notice.NoticeWrittenBy);
+                    authorName = faculty?.FacultyName ?? "Unknown Faculty";
+                }
+
+                result.Add(new NoticeReadDto
+                {
+                    NoticeId = notice.NoticeId,
+                    NoticeTitle = notice.NoticeTitle,
+                    NoticeDescription = notice.NoticeDescription,
+                    PublishedAt = notice.PublishedAt,
+                    NoticeWrittenBy = notice.NoticeWrittenBy,
+                    AuthorType = notice.AuthorType,
+                    AuthorName = authorName,
+                    Image = notice.Image,
+                    File = notice.File,
+                    IsPinned = notice.IsPinned,
+                    Priority = notice.Priority
+                });
             }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Error updating notice", error = ex.Message });
-            }
+
+            return Ok(result);
         }
 
-        // PATCH: api/Notice/123/pin?value=true
-        [HttpPatch("{id:long}/pin")]
-        public async Task<IActionResult> SetPin(long id, [FromQuery] bool value = true)
+        // GET: api/Notice/{id}
+        [HttpGet("{id}")]
+        public async Task<ActionResult<NoticeReadDto>> GetNotice(long id)
         {
-            var n = await _context.Notices.FindAsync(id);
-            if (n == null) return NotFound(new { message = $"Notice {id} not found" });
+            var notice = await _context.Notices.FindAsync(id);
+            if (notice == null)
+                return NotFound(new { message = $"Notice with ID {id} not found" });
 
-            n.IsPinned = value;
+            string authorName = "";
+            if (notice.AuthorType == "Admin")
+            {
+                var admin = await _context.Admins.FindAsync(notice.NoticeWrittenBy);
+                authorName = admin?.AdminName ?? "Unknown Admin";
+            }
+            else if (notice.AuthorType == "Faculty")
+            {
+                var faculty = await _context.Faculties.FindAsync(notice.NoticeWrittenBy);
+                authorName = faculty?.FacultyName ?? "Unknown Faculty";
+            }
 
-            try
+            return Ok(new NoticeReadDto
             {
-                await _context.SaveChangesAsync();
-                return Ok(new { message = value ? "Pinned" : "Unpinned" });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Error updating pin", error = ex.Message });
-            }
+                NoticeId = notice.NoticeId,
+                NoticeTitle = notice.NoticeTitle,
+                NoticeDescription = notice.NoticeDescription,
+                PublishedAt = notice.PublishedAt,
+                NoticeWrittenBy = notice.NoticeWrittenBy,
+                AuthorType = notice.AuthorType,
+                AuthorName = authorName,
+                Image = notice.Image,
+                File = notice.File,
+                IsPinned = notice.IsPinned,
+                Priority = notice.Priority
+            });
         }
 
-        // DELETE: api/Notice/123
-        [HttpDelete("{id:long}")]
-        public async Task<IActionResult> Delete(long id)
+        // DELETE: api/Notice/{id}
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteNotice(long id)
         {
-            var n = await _context.Notices.FindAsync(id);
-            if (n == null) return NotFound(new { message = $"Notice {id} not found" });
+            var notice = await _context.Notices.FindAsync(id);
+            if (notice == null)
+                return NotFound(new { message = $"Notice with ID {id} not found" });
 
-            _context.Notices.Remove(n);
             try
             {
+                _context.Notices.Remove(notice);
                 await _context.SaveChangesAsync();
-                return Ok(new { message = "Notice deleted" });
+                return Ok(new { message = "Notice deleted successfully" });
             }
             catch (Exception ex)
             {

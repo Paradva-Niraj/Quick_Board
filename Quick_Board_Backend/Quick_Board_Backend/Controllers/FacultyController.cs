@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Quick_Board_Backend.Data;
 using Quick_Board_Backend.DTOs;
 using Quick_Board_Backend.Models;
+using Microsoft.AspNetCore.Identity;
 
 namespace Quick_Board_Backend.Controllers
 {
@@ -21,14 +22,18 @@ namespace Quick_Board_Backend.Controllers
         [HttpPost("register")]
         public async Task<ActionResult<FacultyReadDto>> RegisterFaculty([FromBody] FacultyRegisterDto dto)
         {
+            var passwordHasher = new PasswordHasher<Faculty>();
+
             var faculty = new Faculty
             {
                 FacultyName = dto.FacultyName,
                 FacultyMail = dto.FacultyMail,
-                FacultyPassword = dto.FacultyPassword,
                 RequestStatus = false,
                 AddedBy = null
             };
+
+            // ✅ Hash the password before saving
+            faculty.FacultyPassword = passwordHasher.HashPassword(faculty, dto.FacultyPassword);
 
             try
             {

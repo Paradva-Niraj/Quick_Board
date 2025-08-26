@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Quick_Board_Backend.Data;
-using Quick_Board_Backend.Models;
-using Quick_Board_Backend.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Quick_Board_Backend.Data;
+using Quick_Board_Backend.DTOs;
+using Quick_Board_Backend.Models;
 
 namespace Quick_Board_Backend.Controllers
 {
@@ -15,6 +15,39 @@ namespace Quick_Board_Backend.Controllers
         public AdminController(AppDbContext context)
         {
             _context = context;
+        }
+
+        // POST: api/Admin
+        [HttpPost]
+        public async Task<ActionResult<AdminReadDto>> AddAdmin([FromBody] AdminCreateDto dto)
+        {
+            var admin = new Admin
+            {
+                AdminName = dto.AdminName,
+                AdminMail = dto.AdminMail,
+                AdminPassword = dto.AdminPassword
+            };
+
+            try
+            {
+                _context.Admins.Add(admin);
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    message = "Admin added successfully",
+                    admin = new AdminReadDto
+                    {
+                        AdminId = admin.AdminId,
+                        AdminName = admin.AdminName,
+                        AdminMail = admin.AdminMail
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error saving admin", error = ex.Message });
+            }
         }
 
         // GET: api/Admin/{id}
@@ -46,34 +79,10 @@ namespace Quick_Board_Backend.Controllers
                 })
                 .ToListAsync();
 
-            if (!admins.Any())
+            if (admins.Count == 0)
                 return NoContent();
 
             return Ok(admins);
-        }
-
-        // POST: api/Admin
-        [HttpPost]
-        public async Task<ActionResult<AdminReadDto>> AddAdmin([FromBody] AdminCreateDto dto)
-        {
-            var admin = new Admin
-            {
-                AdminName = dto.AdminName,
-                AdminMail = dto.AdminMail,
-                AdminPassword = dto.AdminPassword
-            };
-
-            _context.Admins.Add(admin);
-            await _context.SaveChangesAsync(); // ✅ DB generates AdminId
-
-            var result = new AdminReadDto
-            {
-                AdminId = admin.AdminId,
-                AdminName = admin.AdminName,
-                AdminMail = admin.AdminMail
-            };
-
-            return CreatedAtAction(nameof(GetAdmin), new { id = result.AdminId }, result);
         }
 
         // PUT: api/Admin/{id}
@@ -88,9 +97,15 @@ namespace Quick_Board_Backend.Controllers
             existingAdmin.AdminMail = dto.AdminMail;
             existingAdmin.AdminPassword = dto.AdminPassword;
 
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Admin updated successfully" });
+            try
+            {
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Admin updated successfully" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error updating admin", error = ex.Message });
+            }
         }
 
         // DELETE: api/Admin/{id}
