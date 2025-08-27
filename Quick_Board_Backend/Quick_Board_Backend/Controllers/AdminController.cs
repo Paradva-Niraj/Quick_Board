@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Quick_Board_Backend.Data;
 using Quick_Board_Backend.DTOs;
 using Quick_Board_Backend.Models;
+using Microsoft.AspNetCore.Identity;
 
 namespace Quick_Board_Backend.Controllers
 {
@@ -21,12 +22,15 @@ namespace Quick_Board_Backend.Controllers
         [HttpPost]
         public async Task<ActionResult<AdminReadDto>> AddAdmin([FromBody] AdminCreateDto dto)
         {
+
+            var passwordHasher = new PasswordHasher<Admin>();
             var admin = new Admin
             {
                 AdminName = dto.AdminName,
-                AdminMail = dto.AdminMail,
-                AdminPassword = dto.AdminPassword
+                AdminMail = dto.AdminMail
             };
+
+            admin.AdminPassword = passwordHasher.HashPassword(admin, dto.AdminPassword);
 
             try
             {
