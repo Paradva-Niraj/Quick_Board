@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Quick_Board_Backend.Models
 {
+    [Table("student")]
     public class Student
     {
         [Key]

@@ -18,3 +18,4 @@ obj/
 # Ignore secrets and local configs
 appsettings*.json
 secrets.json
+*.env

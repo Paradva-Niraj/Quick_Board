@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Quick_Board_Backend.Models
 {
-    [Table("admins")]
+    [Table("admin")]
     public class Admin
     {
         [Key]

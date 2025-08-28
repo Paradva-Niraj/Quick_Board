@@ -27,6 +27,9 @@ export default function Register() {
           </button>
         </div>
         {role === "student" ? <StudentRegisterForm /> : <FacultyRegisterForm />}
+        <div>
+          <span></span>
+        </div>
       </div>
     </div>
   );
