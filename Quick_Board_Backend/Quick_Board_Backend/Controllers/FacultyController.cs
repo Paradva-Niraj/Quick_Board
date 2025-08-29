@@ -4,6 +4,7 @@ using Quick_Board_Backend.Data;
 using Quick_Board_Backend.DTOs;
 using Quick_Board_Backend.Models;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Quick_Board_Backend.Controllers
 {
@@ -61,6 +62,7 @@ namespace Quick_Board_Backend.Controllers
 
         // GET: api/Faculty
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<IEnumerable<FacultyReadDto>>> GetAllFaculty()
         {
             var faculties = await _context.Faculties
@@ -81,6 +83,7 @@ namespace Quick_Board_Backend.Controllers
 
         // PUT: api/Faculty/approve/{facultyId}
         [HttpPut("approve/{facultyId}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> ApproveFaculty(int facultyId, [FromBody] FacultyApprovalDto dto)
         {
             var faculty = await _context.Faculties.FindAsync(facultyId);
@@ -103,6 +106,7 @@ namespace Quick_Board_Backend.Controllers
 
         // DELETE: api/Faculty/{id}
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteFaculty(int id)
         {
             var faculty = await _context.Faculties.FindAsync(id);

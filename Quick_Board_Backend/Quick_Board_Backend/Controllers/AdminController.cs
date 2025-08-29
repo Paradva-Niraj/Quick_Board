@@ -4,6 +4,7 @@ using Quick_Board_Backend.Data;
 using Quick_Board_Backend.DTOs;
 using Quick_Board_Backend.Models;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Quick_Board_Backend.Controllers
 {
@@ -20,6 +21,7 @@ namespace Quick_Board_Backend.Controllers
 
         // POST: api/Admin
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<AdminReadDto>> AddAdmin([FromBody] AdminCreateDto dto)
         {
 
@@ -56,6 +58,7 @@ namespace Quick_Board_Backend.Controllers
 
         // GET: api/Admin/{id}
         [HttpGet("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<AdminReadDto>> GetAdmin(int id)
         {
             var admin = await _context.Admins.FindAsync(id);
@@ -72,6 +75,7 @@ namespace Quick_Board_Backend.Controllers
 
         // GET: api/Admin
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<IEnumerable<AdminReadDto>>> GetAllAdmin()
         {
             var admins = await _context.Admins
@@ -91,6 +95,7 @@ namespace Quick_Board_Backend.Controllers
 
         // PUT: api/Admin/{id}
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdateAdmin(int id, [FromBody] AdminCreateDto dto)
         {
             var existingAdmin = await _context.Admins.FindAsync(id);
@@ -114,6 +119,7 @@ namespace Quick_Board_Backend.Controllers
 
         // DELETE: api/Admin/{id}
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteAdmin(int id)
         {
             var admin = await _context.Admins.FindAsync(id);

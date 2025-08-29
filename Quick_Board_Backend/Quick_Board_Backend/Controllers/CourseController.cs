@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Quick_Board_Backend.Data;
 using Quick_Board_Backend.Models;
 using Quick_Board_Backend.DTOs;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Quick_Board_Backend.Controllers
 {
@@ -19,6 +20,7 @@ namespace Quick_Board_Backend.Controllers
 
         // GET: api/Course
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<IEnumerable<CourseReadDto>>> GetAllCourses()
         {
             var courses = await _context.Courses
@@ -37,6 +39,8 @@ namespace Quick_Board_Backend.Controllers
 
         // GET: api/Course/5
         [HttpGet("{id}")]
+
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<CourseReadDto>> GetCourse(int id)
         {
             var course = await _context.Courses.FindAsync(id);
@@ -53,6 +57,7 @@ namespace Quick_Board_Backend.Controllers
 
         // POST: api/Course
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<CourseReadDto>> AddCourse([FromBody] CourseCreateDto courseDto)
         {
             if (!ModelState.IsValid)
@@ -77,6 +82,7 @@ namespace Quick_Board_Backend.Controllers
 
         // PUT: api/Course/5
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdateCourse(int id, [FromBody] CourseCreateDto courseDto)
         {
             var course = await _context.Courses.FindAsync(id);
@@ -91,6 +97,7 @@ namespace Quick_Board_Backend.Controllers
 
         // DELETE: api/Course/5
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteCourse(int id)
         {
             var course = await _context.Courses.FindAsync(id);

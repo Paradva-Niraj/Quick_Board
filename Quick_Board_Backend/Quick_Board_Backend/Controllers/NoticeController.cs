@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Quick_Board_Backend.Data;
 using Quick_Board_Backend.DTOs;
 using Quick_Board_Backend.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Quick_Board_Backend.Controllers
 {
@@ -19,6 +20,7 @@ namespace Quick_Board_Backend.Controllers
 
         // POST: api/Notice
         [HttpPost]
+        [Authorize(Roles = "Faculty")]
         public async Task<ActionResult<NoticeReadDto>> CreateNotice([FromBody] NoticeCreateDto dto)
         {
             // Validate Author exists
@@ -144,6 +146,7 @@ namespace Quick_Board_Backend.Controllers
 
         // GET: api/Notice/{id}
         [HttpGet("{id}")]
+        [Authorize(Roles = "Faculty,Admin")]
         public async Task<ActionResult<NoticeReadDto>> GetNotice(long id)
         {
             var notice = await _context.Notices.FindAsync(id);
@@ -180,6 +183,7 @@ namespace Quick_Board_Backend.Controllers
 
         // DELETE: api/Notice/{id}
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Faculty,Admin")]
         public async Task<IActionResult> DeleteNotice(long id)
         {
             var notice = await _context.Notices.FindAsync(id);

@@ -1,238 +1,388 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LogOut, User, Shield, GraduationCap, Users, Bell, Settings } from 'lucide-react';
-import { authAPI } from '../api/authApi';
+import { Search, Plus, Edit, Trash2, Check, X, Users, GraduationCap, FileText, BookOpen, Filter, Eye } from 'lucide-react';
 
-const Dashboard = () => {
-  const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+const AdminDashboard = () => {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [faculties, setFaculties] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [notices, setNotices] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState('');
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [courseForm, setCourseForm] = useState({ CourseName: '' });
+
+  const token = localStorage.getItem('authToken');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  const apiCall = async (endpoint, options = {}) => {
+    const response = await fetch(`/api${endpoint}`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers },
+      ...options
+    });
+    if (!response.ok) throw new Error(await response.text());
+    return response.status === 204 ? null : response.json();
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [facultyData, studentData, noticeData, courseData] = await Promise.all([
+        apiCall('/Faculty').catch(() => []),
+        apiCall('/Student').catch(() => []),
+        apiCall('/Notice').catch(() => []),
+        apiCall('/Course').catch(() => [])
+      ]);
+      setFaculties(facultyData || []);
+      setStudents(studentData || []);
+      setNotices(noticeData || []);
+      setCourses(courseData || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const userData = authAPI.getCurrentUser();
-    if (userData) {
-      setUser(userData);
-    }
-    setIsLoading(false);
+    fetchData();
   }, []);
 
-  const handleLogout = () => {
-    authAPI.logout();
-  };
-
-  const getRoleIcon = (role) => {
-    switch (role?.toLowerCase()) {
-      case 'admin':
-        return <Shield className="h-6 w-6 text-blue-500" />;
-      case 'faculty':
-        return <GraduationCap className="h-6 w-6 text-green-500" />;
-      case 'student':
-        return <Users className="h-6 w-6 text-purple-500" />;
-      default:
-        return <User className="h-6 w-6 text-gray-500" />;
+  const handleAction = async (action, type, id, data = null) => {
+    try {
+      if (action === 'approve' && type === 'faculty') {
+        await apiCall(`/Faculty/approve/${id}`, { method: 'PUT', body: JSON.stringify({ AdminId: user.id }) });
+      } else if (action === 'delete') {
+        await apiCall(`/${type}/${id}`, { method: 'DELETE' });
+      } else if (action === 'add' && type === 'Course') {
+        await apiCall('/Course', { method: 'POST', body: JSON.stringify(data) });
+      } else if (action === 'edit' && type === 'Course') {
+        await apiCall(`/Course/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+      }
+      fetchData();
+      setShowModal(false);
+      setCourseForm({ CourseName: '' });
+    } catch (error) {
+      alert(error.message);
     }
   };
 
-  const getRoleBadgeColor = (role) => {
-    switch (role?.toLowerCase()) {
-      case 'admin':
-        return 'bg-blue-100 text-blue-800';
-      case 'faculty':
-        return 'bg-green-100 text-green-800';
-      case 'student':
-        return 'bg-purple-100 text-purple-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  const openModal = (type, item = null) => {
+    setModalType(type);
+    setSelectedItem(item);
+    if (type === 'editCourse' && item) setCourseForm({ CourseName: item.CourseName });
+    setShowModal(true);
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+  const filterData = (data, fields) => data.filter(item => 
+    fields.some(field => item[field]?.toString().toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const StatCard = ({ title, count, icon: Icon, color }) => (
+    <div className={`bg-white rounded-xl shadow-lg p-6 border-l-4 ${color}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-gray-600 text-sm">{title}</p>
+          <p className="text-3xl font-bold text-gray-900">{count}</p>
         </div>
+        <Icon className={`h-12 w-12 ${color.includes('blue') ? 'text-blue-500' : color.includes('green') ? 'text-green-500' : color.includes('purple') ? 'text-purple-500' : 'text-orange-500'}`} />
       </div>
-    );
-  }
+    </div>
+  );
+
+  const DataTable = ({ data, columns, actions }) => (
+    <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              {columns.map(col => (
+                <th key={col.key} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {col.label}
+                </th>
+              ))}
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {data.map((item, idx) => (
+              <tr key={idx} className="hover:bg-gray-50">
+                {columns.map(col => (
+                  <td key={col.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {col.render ? col.render(item[col.key], item) : item[col.key]}
+                  </td>
+                ))}
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                  {actions.map(action => (
+                    <button
+                      key={action.label}
+                      onClick={() => action.onClick(item)}
+                      className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium transition-colors ${action.className}`}
+                    >
+                      <action.icon className="h-4 w-4 mr-1" />
+                      {action.label}
+                    </button>
+                  ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const Modal = ({ children, onClose }) => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+        <div className="flex justify-end mb-4">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+
+  const renderTabContent = () => {
+    const filteredFaculties = filterData(faculties, ['FacultyName', 'FacultyMail']);
+    const filteredStudents = filterData(students, ['StudentName', 'StudentMail', 'CourseName']);
+    const filteredNotices = filterData(notices, ['NoticeTitle', 'NoticeDescription', 'AuthorName']);
+    const filteredCourses = filterData(courses, ['CourseName']);
+
+    switch (activeTab) {
+      case 'overview':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <StatCard title="Total Faculty" count={faculties.length} icon={GraduationCap} color="border-blue-500" />
+            <StatCard title="Total Students" count={students.length} icon={Users} color="border-green-500" />
+            <StatCard title="Total Notices" count={notices.length} icon={FileText} color="border-purple-500" />
+            <StatCard title="Total Courses" count={courses.length} icon={BookOpen} color="border-orange-500" />
+          </div>
+        );
+
+      case 'faculty':
+        return (
+          <DataTable
+            data={filteredFaculties}
+            columns={[
+              { key: 'FacultyId', label: 'ID' },
+              { key: 'FacultyName', label: 'Name' },
+              { key: 'FacultyMail', label: 'Email' },
+              { key: 'RequestStatus', label: 'Status', render: (status) => (
+                <span className={`px-2 py-1 rounded-full text-xs ${status ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                  {status ? 'Approved' : 'Pending'}
+                </span>
+              )},
+              { key: 'AddedBy', label: 'Added By' }
+            ]}
+            actions={[
+              ...(filteredFaculties.some(f => !f.RequestStatus) ? [{
+                label: 'Approve', icon: Check, className: 'bg-green-100 text-green-800 hover:bg-green-200',
+                onClick: (item) => !item.RequestStatus && handleAction('approve', 'faculty', item.FacultyId)
+              }] : []),
+              { label: 'Delete', icon: Trash2, className: 'bg-red-100 text-red-800 hover:bg-red-200',
+                onClick: (item) => handleAction('delete', 'Faculty', item.FacultyId) }
+            ]}
+          />
+        );
+
+      case 'students':
+        return (
+          <DataTable
+            data={filteredStudents}
+            columns={[
+              { key: 'StudentId', label: 'ID' },
+              { key: 'StudentName', label: 'Name' },
+              { key: 'StudentMail', label: 'Email' },
+              { key: 'CourseName', label: 'Course' },
+              { key: 'RequestStatus', label: 'Status', render: (status) => (
+                <span className={`px-2 py-1 rounded-full text-xs ${status ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                  {status ? 'Approved' : 'Pending'}
+                </span>
+              )},
+              { key: 'ApprovedByFaculty', label: 'Approved By' }
+            ]}
+            actions={[
+              { label: 'Delete', icon: Trash2, className: 'bg-red-100 text-red-800 hover:bg-red-200',
+                onClick: (item) => handleAction('delete', 'Student', item.StudentId) }
+            ]}
+          />
+        );
+
+      case 'notices':
+        return (
+          <DataTable
+            data={filteredNotices}
+            columns={[
+              { key: 'NoticeId', label: 'ID' },
+              { key: 'NoticeTitle', label: 'Title' },
+              { key: 'AuthorName', label: 'Author' },
+              { key: 'AuthorType', label: 'Type' },
+              { key: 'PublishedAt', label: 'Published', render: (date) => new Date(date).toLocaleDateString() },
+              { key: 'Priority', label: 'Priority' },
+              { key: 'IsPinned', label: 'Pinned', render: (pinned) => pinned ? '📌' : '' }
+            ]}
+            actions={[
+              { label: 'View', icon: Eye, className: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
+                onClick: (item) => alert(`Notice: ${item.NoticeTitle}\n\n${item.NoticeDescription}`) },
+              { label: 'Delete', icon: Trash2, className: 'bg-red-100 text-red-800 hover:bg-red-200',
+                onClick: (item) => handleAction('delete', 'Notice', item.NoticeId) }
+            ]}
+          />
+        );
+
+      case 'courses':
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">Course Management</h2>
+              <button
+                onClick={() => openModal('addCourse')}
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Course
+              </button>
+            </div>
+            <DataTable
+              data={filteredCourses}
+              columns={[
+                { key: 'CourseId', label: 'ID' },
+                { key: 'CourseName', label: 'Course Name' }
+              ]}
+              actions={[
+                { label: 'Edit', icon: Edit, className: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200',
+                  onClick: (item) => openModal('editCourse', item) },
+                { label: 'Delete', icon: Trash2, className: 'bg-red-100 text-red-800 hover:bg-red-200',
+                  onClick: (item) => handleAction('delete', 'Course', item.CourseId) }
+              ]}
+            />
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation Header */}
       <nav className="bg-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-16">
-            {/* Logo */}
             <div className="flex items-center">
               <div className="h-8 w-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
                 <div className="h-4 w-4 bg-white rounded-sm"></div>
               </div>
-              <span className="text-xl font-bold text-gray-900">Quick Board</span>
+              <span className="text-xl font-bold">Quick Board Admin</span>
             </div>
-
-            {/* User Menu */}
             <div className="flex items-center space-x-4">
-              <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                <Bell className="h-5 w-5" />
-              </button>
-              <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                <Settings className="h-5 w-5" />
-              </button>
-              <div className="flex items-center space-x-3">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                  <p className="text-xs text-gray-500">{user?.role}</p>
-                </div>
-                <div className="h-8 w-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">
-                    {user?.name?.charAt(0)?.toUpperCase()}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="ml-4 flex items-center px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </button>
+              <span className="text-sm text-gray-600">Welcome, {user.name}</span>
+              <button onClick={() => localStorage.clear() || window.location.reload()} 
+                className="text-red-600 hover:text-red-700">Logout</button>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <div className="flex items-center mb-6">
-              {getRoleIcon(user?.role)}
-              <div className="ml-4">
-                <h1 className="text-3xl font-bold text-gray-900">
-                  Welcome back, {user?.name}!
-                </h1>
-                <div className="flex items-center mt-2">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(user?.role)}`}>
-                    {user?.role}
-                  </span>
-                  <span className="ml-3 text-sm text-gray-500">ID: {user?.id}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">Quick Actions</h3>
-                <p className="text-blue-700 text-sm">Access your most used features</p>
-              </div>
-              <div className="bg-green-50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-green-900 mb-2">Recent Activity</h3>
-                <p className="text-green-700 text-sm">View your latest interactions</p>
-              </div>
-              <div className="bg-purple-50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-purple-900 mb-2">Notifications</h3>
-                <p className="text-purple-700 text-sm">Stay updated with alerts</p>
-              </div>
-            </div>
-          </div>
+      <div className="max-w-7xl mx-auto py-6 px-4">
+        <div className="flex flex-wrap gap-4 mb-6">
+          {[
+            { id: 'overview', label: 'Overview', icon: Users },
+            { id: 'faculty', label: 'Faculty', icon: GraduationCap },
+            { id: 'students', label: 'Students', icon: Users },
+            { id: 'notices', label: 'Notices', icon: FileText },
+            { id: 'courses', label: 'Courses', icon: BookOpen }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeTab === tab.id 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-white text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <tab.icon className="h-4 w-4 mr-2" />
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Role-based Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Profile</h2>
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <User className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-600">Full Name</p>
-                    <p className="font-medium">{user?.name}</p>
-                  </div>
-                </div>
-                <div className="flex items-center">
-                  <Shield className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-600">Role</p>
-                    <p className="font-medium">{user?.role}</p>
-                  </div>
-                </div>
-                <div className="flex items-center">
-                  <span className="h-5 w-5 text-gray-400 mr-3">#</span>
-                  <div>
-                    <p className="text-sm text-gray-600">User ID</p>
-                    <p className="font-medium">{user?.id}</p>
-                  </div>
-                </div>
-              </div>
+        {activeTab !== 'overview' && (
+          <div className="mb-6 flex items-center space-x-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder={`Search ${activeTab}...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
-
-            {user?.role === 'Admin' && (
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Admin Panel</h2>
-                <div className="grid grid-cols-2 gap-4">
-                  <button className="p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                    <Users className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-                    <p className="text-sm font-medium text-blue-900">Manage Users</p>
-                  </button>
-                  <button className="p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
-                    <Settings className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                    <p className="text-sm font-medium text-green-900">System Settings</p>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
-              <div className="space-y-4">
-                <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <div className="h-2 w-2 bg-green-500 rounded-full mr-3"></div>
-                  <div>
-                    <p className="text-sm font-medium">Successfully logged in</p>
-                    <p className="text-xs text-gray-500">Just now</p>
-                  </div>
-                </div>
-                <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <div className="h-2 w-2 bg-blue-500 rounded-full mr-3"></div>
-                  <div>
-                    <p className="text-sm font-medium">Dashboard accessed</p>
-                    <p className="text-xs text-gray-500">2 minutes ago</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Stats</h2>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Login Sessions</span>
-                  <span className="font-semibold text-blue-600">1</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Account Status</span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Active
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Last Login</span>
-                  <span className="text-gray-900">Now</span>
-                </div>
-              </div>
+            <div className="text-sm text-gray-500">
+              {activeTab === 'faculty' && `${filteredFaculties.length} results`}
+              {activeTab === 'students' && `${filterData(students, ['StudentName', 'StudentMail', 'CourseName']).length} results`}
+              {activeTab === 'notices' && `${filterData(notices, ['NoticeTitle', 'NoticeDescription', 'AuthorName']).length} results`}
+              {activeTab === 'courses' && `${filterData(courses, ['CourseName']).length} results`}
             </div>
           </div>
-        </div>
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <span className="ml-3">Loading...</span>
+          </div>
+        ) : (
+          renderTabContent()
+        )}
       </div>
+
+      {showModal && (
+        <Modal onClose={() => setShowModal(false)}>
+          <h3 className="text-lg font-semibold mb-4">
+            {modalType === 'addCourse' ? 'Add New Course' : 'Edit Course'}
+          </h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Course Name</label>
+              <input
+                type="text"
+                value={courseForm.CourseName}
+                onChange={(e) => setCourseForm({ CourseName: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter course name"
+              />
+            </div>
+            <div className="flex space-x-3 pt-4">
+              <button
+                onClick={() => handleAction(
+                  modalType === 'addCourse' ? 'add' : 'edit',
+                  'Course',
+                  selectedItem?.CourseId,
+                  courseForm
+                )}
+                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                {modalType === 'addCourse' ? 'Add Course' : 'Update Course'}
+              </button>
+              <button
+                onClick={() => setShowModal(false)}
+                className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
 
-export default Dashboard;
+export default AdminDashboard;
