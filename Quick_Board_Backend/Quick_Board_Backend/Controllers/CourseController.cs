@@ -19,22 +19,28 @@ namespace Quick_Board_Backend.Controllers
         }
 
         // GET: api/Course
+        // Fixed Course Controller
         [HttpGet]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<IEnumerable<CourseReadDto>>> GetAllCourses()
         {
-            var courses = await _context.Courses
-                .Select(c => new CourseReadDto
-                {
-                    CourseId = c.CourseId,
-                    CourseName = c.CourseName
-                })
-                .ToListAsync();
+            try
+            {
+                var courses = await _context.Courses
+                    .Select(c => new CourseReadDto
+                    {
+                        CourseId = c.CourseId,
+                        CourseName = c.CourseName
+                    })
+                    .ToListAsync();
 
-            if (courses.Count == 0)
-                return NotFound(new { message = "No courses found" });
-
-            return Ok(courses);
+                // Return empty array instead of NotFound for better frontend handling
+                return Ok(courses);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error fetching courses", error = ex.Message });
+            }
         }
 
         // GET: api/Course/5
