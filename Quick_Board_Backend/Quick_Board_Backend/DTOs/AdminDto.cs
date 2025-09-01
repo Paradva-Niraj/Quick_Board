@@ -8,6 +8,14 @@
         public string AdminPassword { get; set; }
     }
 
+    // Input when updating admin
+    public class AdminUpdateDto
+    {
+        public string AdminName { get; set; }
+        public string AdminMail { get; set; }
+        public string? AdminPassword { get; set; } // nullable → optional
+    }
+
     // Output (don't show password)
     public class AdminReadDto
     {

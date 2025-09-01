@@ -86,8 +86,8 @@ builder.Services.AddAuthentication(options =>
 
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"),
-    ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))));
+        options.UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"),
+        ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))));
 
 // Register CORS
 builder.Services.AddCors(options =>
@@ -111,7 +111,7 @@ app.UseHttpsRedirection();
 
 // Enable CORS BEFORE Authorization & MapControllers
 app.UseCors("AllowReactApp");
-//jwt us 1st line
+//jwt use 1st line
 app.UseAuthentication();
 app.UseAuthorization();
 

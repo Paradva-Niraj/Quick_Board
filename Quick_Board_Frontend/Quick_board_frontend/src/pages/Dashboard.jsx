@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit, Trash2, Check, X, Users, GraduationCap, FileText, BookOpen, Filter, Eye } from 'lucide-react';
 
-const AdminDashboard = () => {
+const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [faculties, setFaculties] = useState([]);
@@ -385,4 +385,4 @@ const AdminDashboard = () => {
   );
 };
 
-export default AdminDashboard;
+export default Dashboard;

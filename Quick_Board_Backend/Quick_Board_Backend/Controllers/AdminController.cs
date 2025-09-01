@@ -24,6 +24,12 @@ namespace Quick_Board_Backend.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<AdminReadDto>> AddAdmin([FromBody] AdminCreateDto dto)
         {
+            // Check if email already exists
+            bool emailExists = await _context.Admins.AnyAsync(a => a.AdminMail == dto.AdminMail);
+            if (emailExists)
+            {
+                return Conflict(new { message = "Admin with this email already exists" });
+            }
 
             var passwordHasher = new PasswordHasher<Admin>();
             var admin = new Admin
@@ -96,15 +102,28 @@ namespace Quick_Board_Backend.Controllers
         // PUT: api/Admin/{id}
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> UpdateAdmin(int id, [FromBody] AdminCreateDto dto)
+        public async Task<IActionResult> UpdateAdmin(int id, [FromBody] AdminUpdateDto dto)
         {
             var existingAdmin = await _context.Admins.FindAsync(id);
             if (existingAdmin == null)
                 return NotFound(new { message = $"Admin with ID {id} not found" });
 
+            // Check if email already exists for another admin
+            bool emailExists = await _context.Admins.AnyAsync(a => a.AdminMail == dto.AdminMail && a.AdminId != id);
+            if (emailExists)
+            {
+                return Conflict(new { message = "Another admin with this email already exists" });
+            }
+
             existingAdmin.AdminName = dto.AdminName;
             existingAdmin.AdminMail = dto.AdminMail;
-            existingAdmin.AdminPassword = dto.AdminPassword;
+
+            if (!string.IsNullOrWhiteSpace(dto.AdminPassword))
+            {
+                var passwordHasher = new PasswordHasher<Admin>();
+                existingAdmin.AdminPassword = passwordHasher.HashPassword(existingAdmin, dto.AdminPassword);
+            }
+            // else: keep the old password
 
             try
             {

@@ -21,8 +21,23 @@ const LoginPage = () => {
         // Check if user is already logged in
         const token = localStorage.getItem('authToken');
         if (token) {
-            // Redirect to dashboard if already authenticated
-            window.location.href = '/dashboard';
+            const userStr = localStorage.getItem("user");
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    if (user.role === "Admin") {
+                        nav("/admin-dashboard");
+                    } else if (user.role === "Faculty") {
+                        nav("/faculty-dashboard");
+                    } else if (user.role === "Student") {
+                        nav("/student-dashboard");
+                    }
+                } catch (err) {
+                    console.error("Error parsing user:", err);
+                    localStorage.removeItem("authToken");
+                    localStorage.removeItem("user");
+                }
+            }
         }
 
         // Load remembered email if exists
@@ -89,9 +104,16 @@ const LoginPage = () => {
 
             // redirect after delay
             setTimeout(() => {
-                nav("/dashboard"); // use navigate hook instead of window.location.href
+                if (data.user.role === "Admin") {
+                    nav("/admin-dashboard");
+                } else if (data.user.role === "Faculty") {
+                    nav("/faculty-dashboard");
+                } else if (data.user.role === "Student") {
+                    nav("/student-dashboard");
+                } else {
+                    nav("/login"); // fallback
+                }
             }, 1000);
-
         } catch (err) {
             console.error("Login error:", err);
             setError(err.message || "Login failed. Please try again.");
