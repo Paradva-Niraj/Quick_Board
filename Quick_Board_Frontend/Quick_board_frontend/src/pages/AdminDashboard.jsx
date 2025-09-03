@@ -24,6 +24,8 @@ import {
   Shield,
   Menu,
   X,
+  Settings as SettingsIcon,
+  // added profile icon
 } from "lucide-react";
 
 import AdminLayout from "./admin/AdminLayout";
@@ -40,7 +42,6 @@ const mockCounts = {
   notices: 12,
   courses: 8,
 };
-
 
 // utility: friendly time-ago string for recent activity
 function timeAgoString(date) {
@@ -61,7 +62,7 @@ const PlaceholderContent = ({ title }) => (
     <h1 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-4">{title}</h1>
     <div className="bg-white rounded-xl shadow-lg p-6 lg:p-8 text-center">
       <div className="w-16 h-16 lg:w-20 lg:h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <Settings className="w-8 h-8 lg:w-10 lg:h-10 text-gray-400" />
+        <SettingsIcon className="w-8 h-8 lg:w-10 lg:h-10 text-gray-400" />
       </div>
       <h3 className="text-lg lg:text-xl font-semibold text-gray-700 mb-2">{title} Management</h3>
       <p className="text-gray-500">This section is under development. Coming soon!</p>
@@ -82,6 +83,10 @@ export default function AdminDashboard() {
   const [showEditAdminModal, setShowEditAdminModal] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState(null);
 
+  // profile (manage self) modal
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [currentAdmin, setCurrentAdmin] = useState(null);
+
   // first login welcome
   const [isFirstLogin, setIsFirstLogin] = useState(false);
 
@@ -90,6 +95,21 @@ export default function AdminDashboard() {
     if (!lastLogin) {
       setIsFirstLogin(true);
       localStorage.setItem("lastLogin", new Date().toISOString());
+    }
+  }, []);
+
+  // load current admin info from localStorage (or optionally call API)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (raw) {
+        const u = JSON.parse(raw);
+        setCurrentAdmin(u);
+      } else {
+        setCurrentAdmin(null);
+      }
+    } catch (e) {
+      setCurrentAdmin(null);
     }
   }, []);
 
@@ -147,8 +167,45 @@ export default function AdminDashboard() {
     setShowAddAdminModal(false);
     setShowEditAdminModal(false);
     setSelectedAdmin(null);
+    setShowProfileModal(false);
     setError("");
   }, [setError]);
+
+  // handle profile (manage self) submit - reuse updateAdmin
+  const handleProfileSubmit = useCallback(
+    async (form) => {
+      // need current admin id
+      const id = currentAdmin?.AdminId || currentAdmin?.adminId || currentAdmin?.id;
+      if (!id) {
+        alert("Unable to determine your admin id.");
+        return;
+      }
+      const res = await updateAdmin(id, form);
+      if (res.success) {
+        // refresh local user data: we can call backend GET admin/{id} or update localStorage
+        try {
+          // fetch updated admin data
+          const updated = await authAPI.apiCall(`/Admin/${id}`, { method: "GET" });
+          // normalize field names
+          const userObj = {
+            ...updated,
+            // keep existing token if present
+            ...(localStorage.getItem("authToken") ? {} : {}),
+          };
+          localStorage.setItem("user", JSON.stringify(userObj));
+          setCurrentAdmin(userObj);
+        } catch (err) {
+          // fallback: update only name/email locally
+          const fallback = { ...currentAdmin, AdminName: form.AdminName, AdminMail: form.AdminMail };
+          localStorage.setItem("user", JSON.stringify(fallback));
+          setCurrentAdmin(fallback);
+          setRawUser(JSON.stringify(fallback)); // to update displayed name
+        }
+        setShowProfileModal(false);
+      }
+    },
+    [currentAdmin, updateAdmin]
+  );
 
   // Sidebar navigation items (keeps the original behavior)
   const navItems = useMemo(
@@ -166,7 +223,7 @@ export default function AdminDashboard() {
   // Renderers for content
   const DashboardContent = () => {
     // read user + last login from localStorage
-    const rawUser = localStorage.getItem("user");
+    const [rawUser,setRawUser] = useState(localStorage.getItem("user"));
     let userObj = {};
     try {
       userObj = rawUser ? JSON.parse(rawUser) : {};
@@ -180,7 +237,7 @@ export default function AdminDashboard() {
     const recent = [
       {
         id: "login",
-        title: "Last Login",
+        title: "Last LogOut",
         detail: lastLogin ? lastLogin.toLocaleString() : "No record",
         icon: Clock,
         timeAgo: lastLogin ? timeAgoString(lastLogin) : "",
@@ -203,7 +260,7 @@ export default function AdminDashboard() {
 
     return (
       <div className="p-4 lg:p-6">
-        <div className="mb-6 flex items-start justify-between">
+        <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between">
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-1">
               Dashboard Overview
@@ -217,14 +274,31 @@ export default function AdminDashboard() {
             </p>
           </div>
 
-          <div className="text-right">
-            {/* <p className="text-sm text-gray-500">Signed in as</p> */}
-            <p className="text-lg font-semibold text-gray-800">
-              {userObj.name || userObj.AdminName || userObj.username || "Admin"}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              {lastLogin ? `Last login: ${lastLogin.toLocaleString()}` : "No last login recorded"}
-            </p>
+          <div className="mt-4 sm:mt-0 flex items-center space-x-3">
+            {/* Profile / Manage Myself button */}
+            <button
+              onClick={() => setShowProfileModal(true)}
+              className="flex items-center space-x-2 bg-white border border-gray-200 px-3 py-2 rounded-xl hover:shadow-md transition-all"
+              title="Manage my profile"
+            >
+              <User className="w-5 h-5 text-gray-600" />
+              <div className="text-left">
+                <div className="text-sm font-medium text-gray-800 truncate" style={{ maxWidth: 160 }}>
+                  {userObj.name || userObj.AdminName || "Admin"}
+                </div>
+                <div className="text-xs text-gray-400">
+                  {lastLogin ? `Last logOut: ${lastLogin.toLocaleString()}` : ""}
+                </div>
+              </div>
+            </button>
+
+            {/* <button
+              onClick={handleLogout}
+              className="flex items-center px-3 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </button> */}
           </div>
         </div>
 
@@ -366,6 +440,26 @@ export default function AdminDashboard() {
       {/* Edit Admin Modal */}
       <AdminModal isOpen={showEditAdminModal} title="Edit Admin" onClose={closeModals}>
         <AdminForm initial={selectedAdmin} onSubmit={handleEditSubmit} onCancel={closeModals} saving={loading} error={error} />
+      </AdminModal>
+
+      {/* Profile / Manage Myself Modal */}
+      <AdminModal isOpen={showProfileModal} title="Manage My Profile" onClose={closeModals}>
+        <AdminForm
+          initial={
+            // convert currentAdmin shape to what AdminForm expects
+            currentAdmin
+              ? {
+                  AdminId: currentAdmin.AdminId || currentAdmin.adminId || currentAdmin.id,
+                  AdminName: currentAdmin.AdminName || currentAdmin.adminName || currentAdmin.name || "",
+                  AdminMail: currentAdmin.AdminMail || currentAdmin.adminMail || currentAdmin.mail || "",
+                }
+              : null
+          }
+          onSubmit={handleProfileSubmit}
+          onCancel={closeModals}
+          saving={loading}
+          error={error}
+        />
       </AdminModal>
     </AdminLayout>
   );

@@ -93,7 +93,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
-        policy.WithOrigins("http://localhost:5173") // no trailing slash
+        policy.WithOrigins("http://localhost:5173") // no trailing slas
               .AllowAnyHeader()
               .AllowAnyMethod()
     );

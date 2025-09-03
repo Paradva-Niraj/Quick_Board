@@ -4,8 +4,10 @@ import { Users, Search, Edit3, Trash2, User } from "lucide-react";
 
 /*
   AdminList component: local search state, memoized filteredAdmins and
-  memoized admin row component so typing in search won't be affected
+  memoized admin row component so typing is stable and won't be affected
   by parent-level state changes.
+
+  Change: exclude currently logged-in admin from the displayed list.
 */
 
 const AdminRow = React.memo(function AdminRow({ admin, onEdit, onDelete }) {
@@ -56,16 +58,35 @@ const AdminRow = React.memo(function AdminRow({ admin, onEdit, onDelete }) {
 export default function AdminList({ admins, loading, error, onEdit, onDelete }) {
   const [searchTerm, setSearchTerm] = useState("");
 
+  // determine current user id from localStorage to exclude from list
+  const currentUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch (e) {
+      return {};
+    }
+  }, []);
+
+  const currentAdminId = currentUser?.AdminId || currentUser?.adminId || currentUser?.id || null;
+
   // memoize filtered list so re-renders are minimized
   const filtered = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return admins || [];
-    return (admins || []).filter((a) => {
+    const source = admins || [];
+
+    // exclude current admin
+    const withoutSelf = source.filter((a) => {
+      const id = a.adminId || a.AdminId || a.id;
+      return id !== currentAdminId;
+    });
+
+    if (!term) return withoutSelf;
+    return withoutSelf.filter((a) => {
       const name = (a.adminName || a.AdminName || "").toLowerCase();
       const email = (a.adminMail || a.AdminMail || "").toLowerCase();
       return name.includes(term) || email.includes(term);
     });
-  }, [admins, searchTerm]);
+  }, [admins, searchTerm, currentAdminId]);
 
   const handleEdit = useCallback((admin) => {
     onEdit(admin);

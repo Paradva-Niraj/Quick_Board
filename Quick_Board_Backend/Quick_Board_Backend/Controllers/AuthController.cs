@@ -43,6 +43,7 @@ public class AuthController : ControllerBase
             string role = null;
             int userId = 0;
             string userName = "";
+            string userMail = "";
 
             // Try Admin
             var admin = await _context.Admins.FirstOrDefaultAsync(a => a.AdminMail.ToLower() == dto.Email.Trim().ToLower());
@@ -52,7 +53,7 @@ public class AuthController : ControllerBase
                 var v = hasher.VerifyHashedPassword(admin, admin.AdminPassword, dto.Password);
                 if (v == PasswordVerificationResult.Success)
                 {
-                    user = admin; role = "Admin"; userId = admin.AdminId; userName = admin.AdminName;
+                    user = admin; role = "Admin"; userId = admin.AdminId; userName = admin.AdminName; userMail = admin.AdminMail;
                 }
             }
 
@@ -66,7 +67,7 @@ public class AuthController : ControllerBase
                     var v = hasher.VerifyHashedPassword(faculty, faculty.FacultyPassword, dto.Password);
                     if (v == PasswordVerificationResult.Success)
                     {
-                        user = faculty; role = "Faculty"; userId = faculty.FacultyId; userName = faculty.FacultyName;
+                        user = faculty; role = "Faculty"; userId = faculty.FacultyId; userName = faculty.FacultyName; userMail = faculty.FacultyMail;
                     }
                 }
             }
@@ -81,7 +82,7 @@ public class AuthController : ControllerBase
                     var v = hasher.VerifyHashedPassword(student, student.StudentPassword, dto.Password);
                     if (v == PasswordVerificationResult.Success)
                     {
-                        user = student; role = "Student"; userId = student.StudentId; userName = student.StudentName;
+                        user = student; role = "Student"; userId = student.StudentId; userName = student.StudentName; userMail = student.StudentMail;
                     }
                 }
             }
@@ -125,7 +126,7 @@ public class AuthController : ControllerBase
             {
                 message = "Login successful.",
                 token = jwt,
-                user = new { id = userId, name = userName, role }
+                user = new { id = userId, name = userName, role, mail = userMail }
             });
         }
         catch (Exception ex)
