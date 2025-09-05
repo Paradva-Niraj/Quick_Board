@@ -22,6 +22,7 @@ namespace Quick_Board_Backend.Controllers
 
         // POST: api/Student/register
         [HttpPost("register")]
+        [AllowAnonymous]
         public async Task<ActionResult<StudentReadDto>> RegisterStudent([FromBody] StudentRegisterDto dto)
         {
             var course = await _context.Courses.FindAsync(dto.StudentCourseId);

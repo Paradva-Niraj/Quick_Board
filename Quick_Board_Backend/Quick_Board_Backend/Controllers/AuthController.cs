@@ -63,6 +63,12 @@ public class AuthController : ControllerBase
                 var faculty = await _context.Faculties.FirstOrDefaultAsync(f => f.FacultyMail.ToLower() == dto.Email.Trim().ToLower());
                 if (faculty != null)
                 {
+                    // check approval
+                    if (faculty.AddedBy == null || !faculty.RequestStatus)
+                    {
+                        return Unauthorized(new { message = "Your account has not been approved yet. Please wait for admin approval." });
+                    }
+
                     var hasher = new PasswordHasher<Faculty>();
                     var v = hasher.VerifyHashedPassword(faculty, faculty.FacultyPassword, dto.Password);
                     if (v == PasswordVerificationResult.Success)
@@ -78,6 +84,12 @@ public class AuthController : ControllerBase
                 var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentMail.ToLower() == dto.Email.Trim().ToLower());
                 if (student != null)
                 {
+                    // check approval
+                    if (student.ApprovedBy == null || !student.RequestStatus)
+                    {
+                        return Unauthorized(new { message = "Your account has not been approved yet. Please wait for faculty approval." });
+                    }
+
                     var hasher = new PasswordHasher<Student>();
                     var v = hasher.VerifyHashedPassword(student, student.StudentPassword, dto.Password);
                     if (v == PasswordVerificationResult.Success)
@@ -101,19 +113,19 @@ public class AuthController : ControllerBase
             var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
 
             var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-                new Claim(ClaimTypes.Name, userName ?? string.Empty),
-                new Claim(ClaimTypes.Email, dto.Email),
-                new Claim(ClaimTypes.Role, role)
-            };
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim(ClaimTypes.Name, userName ?? string.Empty),
+            new Claim(ClaimTypes.Email, dto.Email),
+            new Claim(ClaimTypes.Role, role)
+        };
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
                 Expires = DateTime.UtcNow.AddMinutes(expiresMinutes),
                 Issuer = jwtIssuer,
-                Audience = jwtAudience, 
+                Audience = jwtAudience,
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(keyBytes), SecurityAlgorithms.HmacSha256Signature)
             };
 
@@ -132,8 +144,8 @@ public class AuthController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Login error for {Email}", dto?.Email);
-            // Generic error message to client
             return StatusCode(500, new { message = "An error occurred while processing your request." });
         }
     }
+
 }

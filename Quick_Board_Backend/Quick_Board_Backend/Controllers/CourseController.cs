@@ -20,7 +20,7 @@ namespace Quick_Board_Backend.Controllers
 
         // GET: api/Course
         [HttpGet]
-        [Authorize(Roles = "Admin")]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<CourseReadDto>>> GetAllCourses()
         {
             var courses = await _context.Courses
@@ -40,7 +40,6 @@ namespace Quick_Board_Backend.Controllers
         // GET: api/Course/5
         [HttpGet("{id}")]
 
-        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<CourseReadDto>> GetCourse(int id)
         {
             var course = await _context.Courses.FindAsync(id);

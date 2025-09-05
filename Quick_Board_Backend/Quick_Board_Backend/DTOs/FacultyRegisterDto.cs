@@ -16,6 +16,7 @@
         public string FacultyMail { get; set; }
         public bool RequestStatus { get; set; }
         public int? AddedBy { get; set; }
+        public string? AddedByName { get; set; }
     }
 
     // Admin approves request

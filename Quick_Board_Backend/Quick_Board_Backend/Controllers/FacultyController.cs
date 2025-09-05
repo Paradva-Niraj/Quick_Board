@@ -21,6 +21,7 @@ namespace Quick_Board_Backend.Controllers
 
         // POST: api/Faculty/register
         [HttpPost("register")]
+        [AllowAnonymous]
         public async Task<ActionResult<FacultyReadDto>> RegisterFaculty([FromBody] FacultyRegisterDto dto)
         {
             var passwordHasher = new PasswordHasher<Faculty>();
@@ -65,20 +66,49 @@ namespace Quick_Board_Backend.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<IEnumerable<FacultyReadDto>>> GetAllFaculty()
         {
-            var faculties = await _context.Faculties
-                .Select(f => new FacultyReadDto
+            try
+            {
+                // load faculties
+                var faculties = await _context.Faculties.ToListAsync();
+
+                if (faculties == null || faculties.Count == 0)
+                    return NoContent();
+
+                // get distinct admin ids that approved faculties
+                var adminIds = faculties.Where(f => f.AddedBy.HasValue)
+                                       .Select(f => f.AddedBy!.Value)
+                                       .Distinct()
+                                       .ToList();
+
+                // load those admins
+                var adminMap = new Dictionary<int, string>();
+                if (adminIds.Count > 0)
+                {
+                    adminMap = await _context.Admins
+                                             .Where(a => adminIds.Contains(a.AdminId))
+                                             .ToDictionaryAsync(a => a.AdminId, a => a.AdminName);
+                }
+
+                // map to DTOs
+                var result = faculties.Select(f => new FacultyReadDto
                 {
                     FacultyId = f.FacultyId,
                     FacultyName = f.FacultyName,
                     FacultyMail = f.FacultyMail,
                     RequestStatus = f.RequestStatus,
-                    AddedBy = f.AddedBy
-                }).ToListAsync();
+                    AddedBy = f.AddedBy,
+                    AddedByName = f.AddedBy.HasValue && adminMap.ContainsKey(f.AddedBy.Value)
+                                  ? adminMap[f.AddedBy.Value]
+                                  : null
+                }).ToList();
 
-            if (faculties.Count == 0)
-                return NoContent();
-
-            return Ok(faculties);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // log if you have logger
+                return StatusCode(500, new { message = "Error fetching faculties", error = ex.Message });
+            }
         }
 
         // PUT: api/Faculty/approve/{facultyId}

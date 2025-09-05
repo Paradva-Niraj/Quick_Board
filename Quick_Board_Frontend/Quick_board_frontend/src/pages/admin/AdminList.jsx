@@ -100,8 +100,8 @@ export default function AdminList({ admins, loading, error, onEdit, onDelete }) 
     <div className="p-4 lg:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Manage Admins</h1>
-          <p className="text-gray-600">Add, edit, and manage admin accounts</p>
+          {/* <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Manage Admins</h1>
+          <p className="text-gray-600">Add, edit, and manage admin accounts</p> */}
         </div>
 
         <div className="w-full sm:w-auto max-w-sm">

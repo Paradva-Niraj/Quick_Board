@@ -23,6 +23,10 @@ import AdminForm from "./admin/AdminForm";
 import useAdmins from "./admin/useAdmins";
 import { authAPI } from "../api/authApi"; // used for fetching current admin after update
 
+import useFaculty from "../hooks/useFaculty";
+import FacultyList from "./admin/FacultyList";
+
+
 // mockCounts kept for overview demo (you can replace with real API calls)
 const mockCounts = {
   faculty: 25,
@@ -61,6 +65,7 @@ const PlaceholderContent = ({ title }) => (
 export default function AdminDashboard() {
   // admin data & operations
   const { admins, loading, error, addAdmin, updateAdmin, deleteAdmin, setError } = useAdmins();
+  const { faculties, loading: facultyLoading, error: facultyError, approveFaculty, deleteFaculty } = useFaculty();
 
   // UI state
   const [activeComponent, setActiveComponent] = useState("dashboard"); // 'dashboard' | 'admins' | 'faculty' | ...
@@ -87,6 +92,7 @@ export default function AdminDashboard() {
   }, []);
 
   // Load authoritative current admin info from backend (fallback to localStorage)
+  // FIXED: Preserve role information when updating from backend
   useEffect(() => {
     let mounted = true;
     const loadCurrentAdmin = async () => {
@@ -109,16 +115,32 @@ export default function AdminDashboard() {
         try {
           const backendAdmin = await authAPI.apiCall(`/Admin/${id}`, { method: "GET" });
           if (mounted && backendAdmin) {
-            // backendAdmin should contain AdminId, AdminName, AdminMail
-            setCurrentAdmin(backendAdmin);
-            // also update localStorage so other parts of app get consistent shape
-            localStorage.setItem("user", JSON.stringify(backendAdmin));
+            // Start with localUser
+            const mergedUser = { ...localUser };
+
+            // Add backend fields only if not already present
+            Object.entries(backendAdmin).forEach(([key, value]) => {
+              if (mergedUser[key] === undefined || mergedUser[key] === null) {
+                mergedUser[key] = value;
+              }
+            });
+
+            // Explicit handling for common fields
+            mergedUser.role = localUser.role || "Admin";
+            mergedUser.id = localUser.id ?? backendAdmin.AdminId ?? backendAdmin.adminId;
+            mergedUser.name = localUser.name ?? backendAdmin.AdminName ?? backendAdmin.adminName;
+            mergedUser.mail = localUser.mail ?? backendAdmin.AdminMail ?? backendAdmin.adminMail;
+            mergedUser.email = localUser.email ?? backendAdmin.AdminMail ?? backendAdmin.adminMail;
+
+            setCurrentAdmin(mergedUser);
+            localStorage.setItem("user", JSON.stringify(mergedUser));
           }
         } catch (err) {
-          // if backend fails, fallback to localUser
+          console.error("Failed to fetch admin from backend:", err);
           if (mounted) setCurrentAdmin(localUser);
         }
       } catch (e) {
+        console.error("Error loading current admin:", e);
         if (mounted) setCurrentAdmin(null);
       }
     };
@@ -186,6 +208,7 @@ export default function AdminDashboard() {
   }, [setError]);
 
   // handle profile (manage self) submit - reuse updateAdmin and refresh current admin
+  // FIXED: Preserve role when updating profile
   const handleProfileSubmit = useCallback(
     async (form) => {
       const id = currentAdmin?.AdminId || currentAdmin?.adminId || currentAdmin?.id;
@@ -200,12 +223,31 @@ export default function AdminDashboard() {
         try {
           const updated = await authAPI.apiCall(`/Admin/${id}`, { method: "GET" });
           if (updated) {
-            localStorage.setItem("user", JSON.stringify(updated));
-            setCurrentAdmin(updated);
+            // FIXED: Preserve role when updating after profile change
+            const mergedUser = {
+              ...currentAdmin, // Keep existing data (including role)
+              ...updated, // Override with fresh backend data
+              role: currentAdmin.role || "Admin", // Explicitly preserve role
+              id: updated.AdminId || updated.adminId || currentAdmin.id,
+              name: updated.AdminName || updated.adminName || currentAdmin.name,
+              mail: updated.AdminMail || updated.adminMail || currentAdmin.mail,
+              email: updated.AdminMail || updated.adminMail || currentAdmin.email
+            };
+
+            localStorage.setItem("user", JSON.stringify(mergedUser));
+            setCurrentAdmin(mergedUser);
           }
         } catch (err) {
-          // fallback: update locally
-          const fallback = { ...currentAdmin, AdminName: form.AdminName, AdminMail: form.AdminMail };
+          console.error("Failed to refresh admin after profile update:", err);
+          // fallback: update locally while preserving role
+          const fallback = {
+            ...currentAdmin,
+            AdminName: form.AdminName,
+            AdminMail: form.AdminMail,
+            name: form.AdminName,
+            mail: form.AdminMail,
+            email: form.AdminMail
+          };
           localStorage.setItem("user", JSON.stringify(fallback));
           setCurrentAdmin(fallback);
         }
@@ -244,6 +286,10 @@ export default function AdminDashboard() {
     const lastLoginRaw = localStorage.getItem("lastLogin");
     const lastLogin = lastLoginRaw ? new Date(lastLoginRaw) : null;
 
+    // FIXED: Debug log to check if role is preserved
+    console.log("Dashboard user object:", userObj);
+    console.log("Current admin:", currentAdmin);
+
     const recent = [
       {
         id: "login",
@@ -260,6 +306,7 @@ export default function AdminDashboard() {
         timeAgo: "",
         link: "true"
       },
+
       {
         id: "adminsCount",
         title: "Admins Managed",
@@ -275,11 +322,9 @@ export default function AdminDashboard() {
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-1">Dashboard Overview</h1>
             <p className="text-gray-600">
-              Welcome back,{" "}
-              <span className="font-semibold text-blue-600">
-                {userObj.AdminName || userObj.adminName || userObj.name || "Admin"}
-              </span>
-              .
+              Welcome back{" "}
+              {userObj.role && <span className="text-gray-500"> ({userObj.role})</span>}
+              
             </p>
           </div>
 
@@ -296,6 +341,7 @@ export default function AdminDashboard() {
                   {userObj.AdminName || userObj.adminName || userObj.name || "Admin"}
                 </div>
                 <div className="text-xs text-gray-400">
+                  {/* {userObj.role && `Role: ${userObj.role} • `} */}
                   {lastLogin ? `Last logOut: ${lastLogin.toLocaleString()}` : ""}
                 </div>
               </div>
@@ -310,7 +356,7 @@ export default function AdminDashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
           {[
-            { label: "Faculty", count: mockCounts.faculty, icon: UserPlus, color: "from-green-500 to-emerald-600" },
+            { label: "Faculty", count: Array.isArray(faculties) ? faculties.length : mockCounts.faculty, icon: UserPlus, color: "from-green-500 to-emerald-600" },
             { label: "Students", count: mockCounts.students, icon: GraduationCap, color: "from-blue-500 to-indigo-600" },
             { label: "Notices", count: mockCounts.notices, icon: FileText, color: "from-purple-500 to-violet-600" },
             { label: "Courses", count: mockCounts.courses, icon: BookOpen, color: "from-orange-500 to-red-600" },
@@ -381,7 +427,39 @@ export default function AdminDashboard() {
       case "admins":
         return <AdminsContent />;
       case "faculty":
-        return <PlaceholderContent title="Faculty" />;
+        return (
+          <FacultyList
+            faculties={faculties}
+            loading={facultyLoading}
+            error={facultyError}
+            onApprove={async (facultyId) => {
+              // pick admin id from current admin stored in localStorage "user"
+              const raw = localStorage.getItem("user");
+              let adminId = null;
+              try {
+                const u = raw ? JSON.parse(raw) : null;
+                adminId = u?.AdminId || u?.adminId || u?.id || null;
+              } catch (e) {
+                adminId = null;
+              }
+              if (!adminId) {
+                alert("Unable to determine admin id. Please ensure you are logged in as admin.");
+                return;
+              }
+              const res = await approveFaculty(facultyId, adminId);
+              if (!res.success) {
+                alert("Failed to approve faculty: " + (res.error?.message || "Unknown"));
+              }
+            }}
+            onDelete={async (id) => {
+              if (!window.confirm("Are you sure you want to delete this faculty?")) return;
+              const res = await deleteFaculty(id);
+              if (!res.success) {
+                alert("Failed to delete faculty: " + (res.error?.message || "Unknown"));
+              }
+            }}
+          />
+        );
       case "students":
         return <PlaceholderContent title="Students" />;
       case "notices":
@@ -400,7 +478,7 @@ export default function AdminDashboard() {
       onLogout={handleLogout}
       activeComponent={activeComponent}
       onNavClick={(id) => setActiveComponent(id)}
-      userName={(JSON.parse(localStorage.getItem("user") || "{}").AdminName) || (JSON.parse(localStorage.getItem("user") || "{}").name) || "Admin"}
+      userName={JSON.parse(localStorage.getItem("user") || "{}").name || "Admin"}
     >
       <div className="flex-1 overflow-auto">{renderContent()}</div>
 

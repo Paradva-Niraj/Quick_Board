@@ -46,7 +46,7 @@ const LoginPage = () => {
             setFormData(prev => ({ ...prev, email: rememberedEmail }));
             setRememberMe(true);
         }
-    }, []);
+    }, [nav]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -83,15 +83,26 @@ const LoginPage = () => {
         setSuccess('');
 
         try {
+            console.log('Attempting login with:', { email: formData.email });
+            
             // use our api utility instead of raw fetch
             const data = await login({
                 email: formData.email,
                 password: formData.password,
             });
 
+            console.log('Login response:', data);
+
+            // Ensure the response has the expected structure
+            if (!data.token || !data.user) {
+                throw new Error('Invalid response from server');
+            }
+
             // store auth token & user
             localStorage.setItem("authToken", data.token);
             localStorage.setItem("user", JSON.stringify(data.user));
+
+            console.log('Stored user:', data.user);
 
             // remember email if needed
             if (rememberMe) {
@@ -111,6 +122,7 @@ const LoginPage = () => {
                 } else if (data.user.role === "Student") {
                     nav("/student-dashboard");
                 } else {
+                    console.error('Unknown role:', data.user.role);
                     nav("/login"); // fallback
                 }
             }, 1000);
@@ -121,7 +133,6 @@ const LoginPage = () => {
             setIsLoading(false);
         }
     };
-
 
     const togglePasswordVisibility = () => {
         setShowPassword(!showPassword);
@@ -156,8 +167,8 @@ const LoginPage = () => {
                         </div>
                     )}
 
-                    {/* Form */}
-                    <div className="space-y-6">
+                    {/* Form - FIXED: Using proper form element */}
+                    <form onSubmit={handleSubmit} className="space-y-6">
                         {/* Email Field */}
                         <div>
                             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
@@ -239,14 +250,11 @@ const LoginPage = () => {
                             </div>
                         </div>
 
-                        {/* Submit Button */}
-                        <div
-                            onClick={handleSubmit}
-                            className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 disabled:opacity-50 cursor-pointer select-none"
-                            style={{
-                                opacity: isLoading ? 0.5 : 1,
-                                cursor: isLoading ? 'not-allowed' : 'pointer'
-                            }}
+                        {/* Submit Button - FIXED: Using proper button element */}
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {isLoading ? (
                                 <>
@@ -256,8 +264,8 @@ const LoginPage = () => {
                             ) : (
                                 'Sign in'
                             )}
-                        </div>
-                    </div>
+                        </button>
+                    </form>
 
                     {/* Footer */}
                     <div className="text-center pt-4 border-t border-gray-200">
