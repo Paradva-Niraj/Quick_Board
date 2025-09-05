@@ -26,6 +26,11 @@ import { authAPI } from "../api/authApi"; // used for fetching current admin aft
 import useFaculty from "../hooks/useFaculty";
 import FacultyList from "./admin/FacultyList";
 
+import useStudents from "../hooks/useStudents";
+import StudentList from "./admin/StudentList";
+
+import useCourses from "../hooks/useCourses";
+import CourseList from "./admin/CourseList";
 
 // mockCounts kept for overview demo (you can replace with real API calls)
 const mockCounts = {
@@ -66,6 +71,8 @@ export default function AdminDashboard() {
   // admin data & operations
   const { admins, loading, error, addAdmin, updateAdmin, deleteAdmin, setError } = useAdmins();
   const { faculties, loading: facultyLoading, error: facultyError, approveFaculty, deleteFaculty } = useFaculty();
+  const { students, loading: studentLoading, error: studentError, approveStudent, deleteStudent } = useStudents();
+  const { courses, loading: courseLoading, error: courseError, createCourse, updateCourse, deleteCourse } = useCourses();
 
   // UI state
   const [activeComponent, setActiveComponent] = useState("dashboard"); // 'dashboard' | 'admins' | 'faculty' | ...
@@ -324,7 +331,7 @@ export default function AdminDashboard() {
             <p className="text-gray-600">
               Welcome back{" "}
               {userObj.role && <span className="text-gray-500"> ({userObj.role})</span>}
-              
+
             </p>
           </div>
 
@@ -357,9 +364,9 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
           {[
             { label: "Faculty", count: Array.isArray(faculties) ? faculties.length : mockCounts.faculty, icon: UserPlus, color: "from-green-500 to-emerald-600" },
-            { label: "Students", count: mockCounts.students, icon: GraduationCap, color: "from-blue-500 to-indigo-600" },
+            { label: "Students", count: Array.isArray(students) ? students.length : mockCounts.students, icon: GraduationCap, color: "from-blue-500 to-indigo-600" },
             { label: "Notices", count: mockCounts.notices, icon: FileText, color: "from-purple-500 to-violet-600" },
-            { label: "Courses", count: mockCounts.courses, icon: BookOpen, color: "from-orange-500 to-red-600" },
+            { label: "Courses", count: Array.isArray(courses) ? courses.length : mockCounts.courses, icon: BookOpen, color: "from-orange-500 to-red-600" },
           ].map((item, index) => (
             <div key={index} className="bg-white rounded-xl shadow-lg p-4 lg:p-6 hover:shadow-xl transition-shadow duration-300">
               <div className="flex items-center justify-between">
@@ -401,21 +408,7 @@ export default function AdminDashboard() {
 
   const AdminsContent = () => (
     <div>
-      <div className="p-4 lg:p-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Manage Admins</h1>
-            <p className="text-gray-600">Add, edit, and manage admin accounts</p>
-          </div>
-          <div>
-            <button onClick={() => setShowAddAdminModal(true)} className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-lg flex items-center justify-center space-x-2 hover:from-blue-600 hover:to-indigo-700 transition-all duration-200">
-              <Plus className="w-5 h-5" />
-              <span>Add Admin</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
+      
       <AdminList admins={admins} loading={loading} error={error} onEdit={handleOpenEdit} onDelete={handleDelete} />
     </div>
   );
@@ -461,11 +454,40 @@ export default function AdminDashboard() {
           />
         );
       case "students":
-        return <PlaceholderContent title="Students" />;
+        return (
+          <StudentList
+            students={students}
+            loading={studentLoading}
+            error={studentError}
+            onApprove={async (studentId, facultyId) => {
+              // approveStudent expects (id, facultyId)
+              const res = await approveStudent(studentId, facultyId);
+              if (!res.success) {
+                alert("Failed to approve student: " + (res.message || res.error?.message || "Unknown"));
+              }
+            }}
+            onDelete={async (id) => {
+              if (!window.confirm("Are you sure you want to delete this student?")) return;
+              const res = await deleteStudent(id);
+              if (!res.success) {
+                alert("Failed to delete student: " + (res.message || res.error?.message || "Unknown"));
+              }
+            }}
+          />
+        );
       case "notices":
         return <PlaceholderContent title="Notices" />;
       case "courses":
-        return <PlaceholderContent title="Courses" />;
+        return (
+          <CourseList
+            courses={courses}
+            loading={courseLoading}
+            error={courseError}
+            createCourse={createCourse}
+            updateCourse={updateCourse}
+            deleteCourse={deleteCourse}
+          />
+        );
       default:
         return <DashboardContent />;
     }

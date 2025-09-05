@@ -127,7 +127,7 @@ export default function FacultyList({ faculties = [], loading, error, onApprove,
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
                     <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Manage Faculty</h1>
-                    <p className="text-gray-600">Approve or remove faculty accounts</p>
+                    {/* <p className="text-gray-600">Approve or remove faculty accounts</p> */}
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
