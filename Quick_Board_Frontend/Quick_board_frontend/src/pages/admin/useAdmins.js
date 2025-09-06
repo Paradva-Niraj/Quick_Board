@@ -1,7 +1,6 @@
 // src/pages/admin/useAdmins.js
 import { useState, useCallback, useEffect } from "react";
 import { authAPI } from "../../api/authApi";
-
 /*
   Hook encapsulating admin CRUD and loading/error states.
   Exposes stable callbacks (useCallback) so components can consume
@@ -39,10 +38,7 @@ export default function useAdmins() {
       setLoading(true);
       setError("");
       try {
-        await authAPI.apiCall("/Admin", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        await authAPI.apiCall("/Admin", { method: "POST", body: JSON.stringify(payload) });
         await fetchAll();
         return { success: true };
       } catch (err) {

@@ -83,7 +83,7 @@ const LoginPage = () => {
         setSuccess('');
 
         try {
-            console.log('Attempting login with:', { email: formData.email });
+            // console.log('Attempting login with:', { email: formData.email });
             
             // use our api utility instead of raw fetch
             const data = await login({
@@ -91,7 +91,7 @@ const LoginPage = () => {
                 password: formData.password,
             });
 
-            console.log('Login response:', data);
+            // console.log('Login response:', data);
 
             // Ensure the response has the expected structure
             if (!data.token || !data.user) {

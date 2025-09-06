@@ -32,6 +32,9 @@ import StudentList from "./admin/StudentList";
 import useCourses from "../hooks/useCourses";
 import CourseList from "./admin/CourseList";
 
+import useNotices from "../hooks/useNotices";
+import NoticeList from "./admin/NoticeList";
+
 // mockCounts kept for overview demo (you can replace with real API calls)
 const mockCounts = {
   faculty: 25,
@@ -73,7 +76,9 @@ export default function AdminDashboard() {
   const { faculties, loading: facultyLoading, error: facultyError, approveFaculty, deleteFaculty } = useFaculty();
   const { students, loading: studentLoading, error: studentError, approveStudent, deleteStudent } = useStudents();
   const { courses, loading: courseLoading, error: courseError, createCourse, updateCourse, deleteCourse } = useCourses();
-
+  const { notices, loading: noticeLoading, error: noticeError, getCount } = useNotices();
+  const [noticeCount, setNoticeCount] = useState(null);
+  
   // UI state
   const [activeComponent, setActiveComponent] = useState("dashboard"); // 'dashboard' | 'admins' | 'faculty' | ...
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -97,6 +102,15 @@ export default function AdminDashboard() {
       localStorage.setItem("lastLogin", new Date().toISOString());
     }
   }, []);
+
+  useEffect(() => {
+  let mounted = true;
+  (async () => {
+    const c = await getCount();
+    if (mounted) setNoticeCount(c);
+  })();
+  return () => { mounted = false; }
+}, [getCount]);
 
   // Load authoritative current admin info from backend (fallback to localStorage)
   // FIXED: Preserve role information when updating from backend
@@ -293,10 +307,6 @@ export default function AdminDashboard() {
     const lastLoginRaw = localStorage.getItem("lastLogin");
     const lastLogin = lastLoginRaw ? new Date(lastLoginRaw) : null;
 
-    // FIXED: Debug log to check if role is preserved
-    console.log("Dashboard user object:", userObj);
-    console.log("Current admin:", currentAdmin);
-
     const recent = [
       {
         id: "login",
@@ -365,7 +375,7 @@ export default function AdminDashboard() {
           {[
             { label: "Faculty", count: Array.isArray(faculties) ? faculties.length : mockCounts.faculty, icon: UserPlus, color: "from-green-500 to-emerald-600" },
             { label: "Students", count: Array.isArray(students) ? students.length : mockCounts.students, icon: GraduationCap, color: "from-blue-500 to-indigo-600" },
-            { label: "Notices", count: mockCounts.notices, icon: FileText, color: "from-purple-500 to-violet-600" },
+            { label: "Notices", count: noticeCount ?? mockCounts.notices, icon: FileText, color: "from-purple-500 to-violet-600" },
             { label: "Courses", count: Array.isArray(courses) ? courses.length : mockCounts.courses, icon: BookOpen, color: "from-orange-500 to-red-600" },
           ].map((item, index) => (
             <div key={index} className="bg-white rounded-xl shadow-lg p-4 lg:p-6 hover:shadow-xl transition-shadow duration-300">
@@ -408,7 +418,7 @@ export default function AdminDashboard() {
 
   const AdminsContent = () => (
     <div>
-      
+
       <AdminList admins={admins} loading={loading} error={error} onEdit={handleOpenEdit} onDelete={handleDelete} />
     </div>
   );
@@ -476,7 +486,20 @@ export default function AdminDashboard() {
           />
         );
       case "notices":
-        return <PlaceholderContent title="Notices" />;
+        return (
+          <NoticeList
+            notices={notices}
+            loading={noticeLoading}
+            error={noticeError}
+            onDelete={async (id) => {
+              // deleteNotice is provided by hook
+              const res = await deleteNotice(id);
+              if (!res.success) {
+                alert("Failed to delete notice: " + (res.error || "Unknown"));
+              }
+            }}
+          />
+        );
       case "courses":
         return (
           <CourseList
