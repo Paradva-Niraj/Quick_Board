@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { AlertCircle, CheckCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, Eye, EyeOff, User, Mail, Lock, BookOpen } from "lucide-react";
 import InputField from "../ui/InputField";
 import { registerStudent, getCourses } from "../../api/authApi";
 
@@ -14,6 +14,7 @@ export default function StudentRegisterForm() {
   const [message, setMessage] = useState("");
   const [courses, setCourses] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (message) {
@@ -67,129 +68,205 @@ export default function StudentRegisterForm() {
   };
 
   return (
-    <div className="min-h-100 bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full space-y-8">
-        <div className="mx-auto h-12 w-12 bg-gradient-to-r from-green-600 to-lime-600 rounded-lg flex items-center justify-center mb-4">
-          <div className="h-6 w-6 bg-white rounded-sm"></div>
-        </div>
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900">Student Registration</h2>
-          <p className="mt-2 text-gray-600">Create your student account here</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-8 space-y-6">
-          {(message && !Object.keys(errors).length) && (
-            <div className="flex items-center p-4 bg-green-50 border border-green-200 rounded-lg">
-              <CheckCircle className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
-              <span className="text-green-700 text-sm">{message}</span>
-            </div>
-          )}
-          {Object.keys(errors).length > 0 && (
-            <div className="flex items-center p-4 bg-red-50 border border-red-200 rounded-lg">
-              <AlertCircle className="h-5 w-5 text-red-500 mr-3 flex-shrink-0" />
-              <span className="text-red-700 text-sm">Please fix the errors above</span>
-            </div>
-          )}
-
-          <InputField
-            label="Name"
-            value={formData.StudentName}
-            onChange={(e) => setFormData({ ...formData, StudentName: e.target.value })}
-            error={errors.StudentName}
-            disabled={isLoading}
-          />
-          <InputField
-            label="Email"
-            type="email"
-            value={formData.StudentMail}
-            onChange={(e) => setFormData({ ...formData, StudentMail: e.target.value })}
-            error={errors.StudentMail}
-            disabled={isLoading}
-          />
-          <InputField
-            label="Password"
-            type="password"
-            value={formData.StudentPassword}
-            onChange={(e) => setFormData({ ...formData, StudentPassword: e.target.value })}
-            error={errors.StudentPassword}
-            disabled={isLoading}
-          />
-
-          {/* Course Dropdown */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">Course</label>
-            <select
-              value={formData.StudentCourseId}
-              onChange={(e) => setFormData({ ...formData, StudentCourseId: e.target.value })}
-              className={`mt-1 block w-full rounded-xl border p-2 focus:ring-2 focus:ring-green-500 shadow-sm ${
-                errors.StudentCourseId ? "border-red-500" : "border-gray-300"
-              }`}
-              disabled={isLoading}
-            >
-              <option value="">-- Select Course --</option>
-              {courses.map((course) => (
-                <option key={course.courseId} value={course.courseId}>
-                  {course.courseName}
-                </option>
-              ))}
-            </select>
-            {errors.StudentCourseId && (
-              <p className="text-red-500 text-sm mt-1">{errors.StudentCourseId}</p>
-            )}
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg transform hover:scale-105 transition-transform">
+            <BookOpen className="w-8 h-8 text-white" />
           </div>
+          <h2 className="text-3xl font-bold text-gray-800 mb-2">Join as Student</h2>
+          <p className="text-gray-600">Create your student account and start learning</p>
+        </div>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className={`w-full flex justify-center items-center py-3 px-4 rounded-lg shadow-sm text-sm font-medium text-white ${
-              isLoading
-                ? "bg-green-400 cursor-not-allowed"
-                : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
-            } transition-all duration-200`}
-          >
-            {isLoading ? (
-              <>
-                <svg
-                  className="animate-spin h-5 w-5 mr-2 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
+        {/* Form Container */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl p-8 border border-white/20">
+          {/* Success/Error Messages */}
+          {message && !Object.keys(errors).length && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl">
+              <div className="flex items-center">
+                <CheckCircle className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" />
+                <span className="text-green-700 text-sm font-medium">{message}</span>
+              </div>
+            </div>
+          )}
+
+          {message && Object.keys(errors).length > 0 && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-2xl">
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 text-red-500 mr-3 flex-shrink-0" />
+                <span className="text-red-700 text-sm font-medium">{message}</span>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Name Field */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Full Name
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <User className="w-5 h-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={formData.StudentName}
+                  onChange={(e) => setFormData({ ...formData, StudentName: e.target.value })}
+                  disabled={isLoading}
+                  className={`w-full pl-12 pr-4 py-4 bg-gray-50 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all duration-300 placeholder-gray-400 ${
+                    errors.StudentName ? "border-red-300 bg-red-50" : "border-gray-200"
+                  }`}
+                  placeholder="Enter your full name"
+                />
+              </div>
+              {errors.StudentName && (
+                <p className="text-red-500 text-sm ml-1 flex items-center">
+                  <AlertCircle className="w-4 h-4 mr-1" />
+                  {errors.StudentName}
+                </p>
+              )}
+            </div>
+
+            {/* Email Field */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Email Address
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Mail className="w-5 h-5 text-gray-400" />
+                </div>
+                <input
+                  type="email"
+                  value={formData.StudentMail}
+                  onChange={(e) => setFormData({ ...formData, StudentMail: e.target.value })}
+                  disabled={isLoading}
+                  className={`w-full pl-12 pr-4 py-4 bg-gray-50 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all duration-300 placeholder-gray-400 ${
+                    errors.StudentMail ? "border-red-300 bg-red-50" : "border-gray-200"
+                  }`}
+                  placeholder="Enter your email address"
+                />
+              </div>
+              {errors.StudentMail && (
+                <p className="text-red-500 text-sm ml-1 flex items-center">
+                  <AlertCircle className="w-4 h-4 mr-1" />
+                  {errors.StudentMail}
+                </p>
+              )}
+            </div>
+
+            {/* Password Field */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Lock className="w-5 h-5 text-gray-400" />
+                </div>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={formData.StudentPassword}
+                  onChange={(e) => setFormData({ ...formData, StudentPassword: e.target.value })}
+                  disabled={isLoading}
+                  className={`w-full pl-12 pr-12 py-4 bg-gray-50 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all duration-300 placeholder-gray-400 ${
+                    errors.StudentPassword ? "border-red-300 bg-red-50" : "border-gray-200"
+                  }`}
+                  placeholder="Create a strong password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8H4z"
-                  ></path>
-                </svg>
-                Registering...
-              </>
-            ) : (
-              "Register"
-            )}
-          </button>
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              {errors.StudentPassword && (
+                <p className="text-red-500 text-sm ml-1 flex items-center">
+                  <AlertCircle className="w-4 h-4 mr-1" />
+                  {errors.StudentPassword}
+                </p>
+              )}
+            </div>
 
-          <div className="text-center pt-4 border-t border-gray-200">
-            <p className="text-sm text-gray-600">
-              Have an account?{" "}
-              <a
-                href="/login"
-                className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
-              >
-                Sign in here
-              </a>
-            </p>
-          </div>
+            {/* Course Field */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Select Course
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
+                  <BookOpen className="w-5 h-5 text-gray-400" />
+                </div>
+                <select
+                  value={formData.StudentCourseId}
+                  onChange={(e) => setFormData({ ...formData, StudentCourseId: e.target.value })}
+                  disabled={isLoading}
+                  className={`w-full pl-12 pr-4 py-4 bg-gray-50 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all duration-300 appearance-none ${
+                    errors.StudentCourseId ? "border-red-300 bg-red-50" : "border-gray-200"
+                  }`}
+                >
+                  <option value="">Choose your course</option>
+                  {courses.map((course) => (
+                    <option key={course.courseId} value={course.courseId}>
+                      {course.courseName}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+              {errors.StudentCourseId && (
+                <p className="text-red-500 text-sm ml-1 flex items-center">
+                  <AlertCircle className="w-4 h-4 mr-1" />
+                  {errors.StudentCourseId}
+                </p>
+              )}
+            </div>
 
-          
-        </form>
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full py-4 rounded-2xl font-semibold text-white shadow-lg transform transition-all duration-300 ${
+                isLoading
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 hover:scale-105 hover:shadow-xl active:scale-95"
+              }`}
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <svg className="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                  Creating Account...
+                </div>
+              ) : (
+                "Create Student Account"
+              )}
+            </button>
+
+            {/* Login Link */}
+            <div className="text-center pt-6 border-t border-gray-100">
+              <p className="text-gray-600">
+                Already have an account?{" "}
+                <a
+                  href="/login"
+                  className="font-semibold text-blue-600 hover:text-blue-500 transition-colors hover:underline"
+                >
+                  Sign in here
+                </a>
+              </p>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

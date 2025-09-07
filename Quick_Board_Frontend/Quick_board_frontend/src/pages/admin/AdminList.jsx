@@ -9,6 +9,7 @@ import { Users, Search, Edit3, Trash2, User, Plus } from "lucide-react";
   - role badge next to name
   - Disable delete for currently logged-in admin
   - Stable keys and memoized row
+  - Fixed onAdd prop for Add Admin functionality
 */
 
 const AdminRow = React.memo(function AdminRow({ admin, currentAdminId, onEdit, onDelete }) {
@@ -69,7 +70,7 @@ const AdminRow = React.memo(function AdminRow({ admin, currentAdminId, onEdit, o
   );
 });
 
-export default function AdminList({ admins, loading, error, onEdit, onDelete }) {
+export default function AdminList({ admins, loading, error, onEdit, onDelete, onAdd }) {
   const [searchTerm, setSearchTerm] = useState("");
 
   // determine current user id from localStorage to disable self-delete
@@ -105,12 +106,17 @@ export default function AdminList({ admins, loading, error, onEdit, onDelete }) 
     onDelete(id);
   }, [onDelete]);
 
+  const handleAdd = useCallback(() => {
+    if (onAdd) {
+      onAdd();
+    }
+  }, [onAdd]);
+
   return (
     <div className="p-4 lg:p-6">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-5">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Manage Admins</h1>
-          <p className="text-sm text-gray-500 mt-1">Add, edit and manage admin accounts</p>
         </div>
 
         <div className="flex w-full md:w-auto items-center gap-3">
@@ -127,7 +133,7 @@ export default function AdminList({ admins, loading, error, onEdit, onDelete }) 
           </div>
 
           <button
-            onClick={() => onEdit(null)} // open add modal in parent when admin is null
+            onClick={handleAdd}
             className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-3 py-2 rounded-lg shadow-sm hover:from-blue-700 hover:to-indigo-700 text-sm"
             title="Add new admin"
             aria-label="Add admin"

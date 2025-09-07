@@ -6,7 +6,6 @@ using Quick_Board_Backend.Data;
 using Quick_Board_Backend.DTOs;
 using Quick_Board_Backend.Models;
 
-
 namespace Quick_Board_Backend.Controllers
 {
     [Route("api/[controller]")]
@@ -25,9 +24,45 @@ namespace Quick_Board_Backend.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<StudentReadDto>> RegisterStudent([FromBody] StudentRegisterDto dto)
         {
+            // ✅ Check if course exists
             var course = await _context.Courses.FindAsync(dto.StudentCourseId);
             if (course == null)
                 return NotFound(new { message = $"Course with ID {dto.StudentCourseId} not found" });
+
+            // ✅ Check if email already exists in Student table
+            var existingStudent = await _context.Students
+                .FirstOrDefaultAsync(s => s.StudentMail.ToLower() == dto.StudentMail.ToLower());
+
+            if (existingStudent != null)
+            {
+                return BadRequest(new
+                {
+                    message = "Email already registered as Student. Please try to login or use a different email."
+                });
+            }
+
+            // ✅ Optional: Check if email exists in other tables (Admin/Faculty)
+            var existingAdmin = await _context.Admins
+                .FirstOrDefaultAsync(a => a.AdminMail.ToLower() == dto.StudentMail.ToLower());
+
+            if (existingAdmin != null)
+            {
+                return BadRequest(new
+                {
+                    message = "Email already registered as Admin. Please use a different email."
+                });
+            }
+
+            var existingFaculty = await _context.Faculties
+                .FirstOrDefaultAsync(f => f.FacultyMail.ToLower() == dto.StudentMail.ToLower());
+
+            if (existingFaculty != null)
+            {
+                return BadRequest(new
+                {
+                    message = "Email already registered as Faculty. Please use a different email."
+                });
+            }
 
             // ✅ Hash password using Identity's PasswordHasher
             var passwordHasher = new PasswordHasher<Student>();
@@ -68,7 +103,6 @@ namespace Quick_Board_Backend.Controllers
                 return StatusCode(500, new { message = "Error saving student", error = ex.Message });
             }
         }
-
 
         // GET: api/Student
         [HttpGet]

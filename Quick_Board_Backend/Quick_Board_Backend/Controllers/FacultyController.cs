@@ -24,6 +24,41 @@ namespace Quick_Board_Backend.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<FacultyReadDto>> RegisterFaculty([FromBody] FacultyRegisterDto dto)
         {
+            // ✅ Check if email already exists in Faculty table
+            var existingFaculty = await _context.Faculties
+                .FirstOrDefaultAsync(f => f.FacultyMail.ToLower() == dto.FacultyMail.ToLower());
+
+            if (existingFaculty != null)
+            {
+                return BadRequest(new
+                {
+                    message = "Email already registered as Faculty. Please try to login or use a different email."
+                });
+            }
+
+            // ✅ Optional: Check if email exists in other tables (Admin/Student)
+            var existingAdmin = await _context.Admins
+                .FirstOrDefaultAsync(a => a.AdminMail.ToLower() == dto.FacultyMail.ToLower());
+
+            if (existingAdmin != null)
+            {
+                return BadRequest(new
+                {
+                    message = "Email already registered as Admin. Please use a different email."
+                });
+            }
+
+            var existingStudent = await _context.Students
+                .FirstOrDefaultAsync(s => s.StudentMail.ToLower() == dto.FacultyMail.ToLower());
+
+            if (existingStudent != null)
+            {
+                return BadRequest(new
+                {
+                    message = "Email already registered as Student. Please use a different email."
+                });
+            }
+
             var passwordHasher = new PasswordHasher<Faculty>();
 
             var faculty = new Faculty

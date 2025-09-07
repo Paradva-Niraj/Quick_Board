@@ -78,7 +78,7 @@ export default function AdminDashboard() {
   const { courses, loading: courseLoading, error: courseError, createCourse, updateCourse, deleteCourse } = useCourses();
   const { notices, loading: noticeLoading, error: noticeError, getCount } = useNotices();
   const [noticeCount, setNoticeCount] = useState(null);
-  
+
   // UI state
   const [activeComponent, setActiveComponent] = useState("dashboard"); // 'dashboard' | 'admins' | 'faculty' | ...
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -104,13 +104,13 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-  let mounted = true;
-  (async () => {
-    const c = await getCount();
-    if (mounted) setNoticeCount(c);
-  })();
-  return () => { mounted = false; }
-}, [getCount]);
+    let mounted = true;
+    (async () => {
+      const c = await getCount();
+      if (mounted) setNoticeCount(c);
+    })();
+    return () => { mounted = false; }
+  }, [getCount]);
 
   // Load authoritative current admin info from backend (fallback to localStorage)
   // FIXED: Preserve role information when updating from backend
@@ -418,8 +418,14 @@ export default function AdminDashboard() {
 
   const AdminsContent = () => (
     <div>
-
-      <AdminList admins={admins} loading={loading} error={error} onEdit={handleOpenEdit} onDelete={handleDelete} />
+      <AdminList
+        admins={admins}
+        loading={loading}
+        error={error}
+        onEdit={handleOpenEdit}
+        onDelete={handleDelete}
+        onAdd={() => setShowAddAdminModal(true)} // Add this line
+      />
     </div>
   );
 
