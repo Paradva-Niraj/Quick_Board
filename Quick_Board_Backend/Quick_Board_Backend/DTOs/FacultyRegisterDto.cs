@@ -24,4 +24,11 @@
     {
         public int AdminId { get; set; }  // who approved
     }
+
+    public class FacultyUpdateDto
+    {
+        public string FacultyName { get; set; } = string.Empty;
+        public string FacultyMail { get; set; } = string.Empty;
+        public string? FacultyPassword { get; set; } // optional, only update if provided
+    }
 }

@@ -169,6 +169,58 @@ namespace Quick_Board_Backend.Controllers
             }
         }
 
+        // PUT: api/Faculty/{id}
+        [HttpPut("{id}")]
+        [Authorize(Roles = "Faculty")]
+        public async Task<IActionResult> UpdateFaculty(int id, [FromBody] FacultyUpdateDto dto)
+        {
+            var faculty = await _context.Faculties.FindAsync(id);
+            if (faculty == null)
+                return NotFound(new { message = $"Faculty with ID {id} not found" });
+
+            // Check if email already used by another faculty
+            var existingFaculty = await _context.Faculties
+                .FirstOrDefaultAsync(f => f.FacultyMail.ToLower() == dto.FacultyMail.ToLower() && f.FacultyId != id);
+
+            if (existingFaculty != null)
+            {
+                return BadRequest(new { message = "Email already registered by another faculty" });
+            }
+
+            // Update fields
+            faculty.FacultyName = dto.FacultyName;
+            faculty.FacultyMail = dto.FacultyMail;
+
+            // Update password if provided
+            if (!string.IsNullOrWhiteSpace(dto.FacultyPassword))
+            {
+                var passwordHasher = new PasswordHasher<Faculty>();
+                faculty.FacultyPassword = passwordHasher.HashPassword(faculty, dto.FacultyPassword);
+            }
+
+            try
+            {
+                await _context.SaveChangesAsync();
+                return Ok(new
+                {
+                    message = "Faculty updated successfully",
+                    faculty = new
+                    {
+                        faculty.FacultyId,
+                        faculty.FacultyName,
+                        faculty.FacultyMail,
+                        faculty.RequestStatus,
+                        faculty.AddedBy
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error updating faculty", error = ex.Message });
+            }
+        }
+            
+
         // DELETE: api/Faculty/{id}
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]

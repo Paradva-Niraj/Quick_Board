@@ -1,14 +1,6 @@
 // src/api/facultyApi.js
 import { authAPI } from "./authApi";
 
-/**
- * Faculty API helper using authAPI.apiCall (fetch wrapper).
- * Endpoints expected:
- * GET  /Faculty                -> list faculties
- * PUT  /Faculty/approve/{id}   -> approve faculty (body { AdminId })
- * DELETE /Faculty/{id}         -> delete faculty
- */
-
 const facultyApi = {
   getAll: async () => {
     return await authAPI.apiCall("/Faculty", { method: "GET" });
@@ -25,6 +17,14 @@ const facultyApi = {
   delete: async (facultyId) => {
     return await authAPI.apiCall(`/Faculty/${facultyId}`, {
       method: "DELETE",
+    });
+  },
+
+  update: async (facultyId, payload) => {
+    return await authAPI.apiCall(`/Faculty/${facultyId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
     });
   },
 };

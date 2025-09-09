@@ -33,6 +33,14 @@ const noticeApi = {
       headers: { "Content-Type": "application/json" },
     });
   },
+
+  update: async (id, payload) => {
+    return await authAPI.apiCall(`/Notice/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+    });
+  },
 };
 
 export default noticeApi;
