@@ -83,12 +83,21 @@ builder.Services.AddAuthentication(options =>
         }
     };
 });
+var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? throw new Exception("DB_HOST environment variable is missing");
+var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? throw new Exception("DB_PORT environment variable is missing");
+var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? throw new Exception("DB_NAME environment variable is missing");
+var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? throw new Exception("DB_USER environment variable is missing");
+var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? throw new Exception("DB_PASSWORD environment variable is missing");
+var caCertContent = Environment.GetEnvironmentVariable("CA_CERT_CONTENT") ?? throw new Exception("CA_CERT_CONTENT environment variable is missing");
 
+// Create a temporary certificate file
+var tempCertPath = Path.Combine(Path.GetTempPath(), $"ca-cert-{Guid.NewGuid()}.pem");
+await File.WriteAllTextAsync(tempCertPath, caCertContent);
+
+var connectionString = $"server={dbHost};port={dbPort};database={dbName};user={dbUser};password={dbPassword};SslMode=Required;SslCa={tempCertPath};";
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"),
-        ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))));
-
+        options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 // Register CORS
 builder.Services.AddCors(options =>
 {

@@ -76,7 +76,8 @@ export default function AdminDashboard() {
   const { faculties, loading: facultyLoading, error: facultyError, approveFaculty, deleteFaculty } = useFaculty();
   const { students, loading: studentLoading, error: studentError, approveStudent, deleteStudent } = useStudents();
   const { courses, loading: courseLoading, error: courseError, createCourse, updateCourse, deleteCourse } = useCourses();
-  const { notices, loading: noticeLoading, error: noticeError, getCount } = useNotices();
+  // useNotices hook - expects it to return count (number) and deleteNotice, refresh etc.
+  const { notices, loading: noticeLoading, error: noticeError, count: noticesCount, refresh: refreshNotices, deleteNotice,count } = useNotices();
   const [noticeCount, setNoticeCount] = useState(null);
 
   // UI state
@@ -103,14 +104,21 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  // Use the numeric count from the hook (not as a function)
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const c = await getCount();
-      if (mounted) setNoticeCount(c);
-    })();
-    return () => { mounted = false; }
-  }, [getCount]);
+    try {
+      const seen = localStorage.getItem("noticeCountSeen");
+      if (seen === null) {
+        const countToStore = (typeof noticeCount === "number"
+          ? noticeCount
+          : Array.isArray(notices)
+            ? notices.length
+            : 0);
+
+        localStorage.setItem("noticeCountSeen", String(countToStore));
+      }
+    } catch { }
+  }, [noticeCount, notices]);
 
   // Load authoritative current admin info from backend (fallback to localStorage)
   // FIXED: Preserve role information when updating from backend
@@ -294,6 +302,40 @@ export default function AdminDashboard() {
     []
   );
 
+  //  Helper: read seen count from localStorage
+  const getSeenNoticeCount = useCallback(() => {
+    try {
+      const v = localStorage.getItem("noticeCountSeen");
+      return v === null ? 0 : Number(v) || 0;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // Handler for navigation clicks so we can clear notice badge when visiting notices
+  const handleNavClick = useCallback((id) => {
+    if (id === "notices") {
+      // mark all notices as seen: prefer noticeCount (from state) else fallback to notices length
+      const countToStore = (typeof noticeCount === "number" ? noticeCount : (Array.isArray(notices) ? notices.length : 0));
+      try {
+        localStorage.setItem("noticeCountSeen", String(countToStore));
+      } catch (e) {
+        // ignore
+      }
+    }
+    setActiveComponent(id);
+  }, [noticeCount, notices]);
+
+  // If activeComponent becomes "notices" by any other flow, clear seen count too
+  useEffect(() => {
+    if (activeComponent === "notices") {
+      const countToStore = (typeof noticeCount === "number" ? noticeCount : (Array.isArray(notices) ? notices.length : 0));
+      try {
+        localStorage.setItem("noticeCountSeen", String(countToStore));
+      } catch { }
+    }
+  }, [activeComponent, noticeCount, notices]);
+
   // Renderers for content
   const DashboardContent = () => {
     // read user + last login from localStorage (or use currentAdmin)
@@ -341,7 +383,6 @@ export default function AdminDashboard() {
             <p className="text-gray-600">
               Welcome back{" "}
               {userObj.role && <span className="text-gray-500"> ({userObj.role})</span>}
-
             </p>
           </div>
 
@@ -358,16 +399,10 @@ export default function AdminDashboard() {
                   {userObj.AdminName || userObj.adminName || userObj.name || "Admin"}
                 </div>
                 <div className="text-xs text-gray-400">
-                  {/* {userObj.role && `Role: ${userObj.role} • `} */}
                   {lastLogin ? `Last logOut: ${lastLogin.toLocaleString()}` : ""}
                 </div>
               </div>
             </button>
-
-            {/* <button onClick={handleLogout} className="flex items-center px-3 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all">
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </button> */}
           </div>
         </div>
 
@@ -375,10 +410,23 @@ export default function AdminDashboard() {
           {[
             { label: "Faculty", count: Array.isArray(faculties) ? faculties.length : mockCounts.faculty, icon: UserPlus, color: "from-green-500 to-emerald-600" },
             { label: "Students", count: Array.isArray(students) ? students.length : mockCounts.students, icon: GraduationCap, color: "from-blue-500 to-indigo-600" },
-            { label: "Notices", count: noticeCount ?? mockCounts.notices, icon: FileText, color: "from-purple-500 to-violet-600" },
+            { label: "Notices", count: noticeCount ?? (Array.isArray(notices) ? notices.length : mockCounts.notices), icon: FileText, color: "from-purple-500 to-violet-600" },
             { label: "Courses", count: Array.isArray(courses) ? courses.length : mockCounts.courses, icon: BookOpen, color: "from-orange-500 to-red-600" },
           ].map((item, index) => (
-            <div key={index} className="bg-white rounded-xl shadow-lg p-4 lg:p-6 hover:shadow-xl transition-shadow duration-300">
+            <div
+              key={index}
+              className={`relative bg-white rounded-xl shadow-lg p-4 lg:p-6 hover:shadow-xl transition-shadow duration-300 ${item.label === 'Notices' ? 'cursor-pointer' : ''}`}
+              onClick={() => {
+                if (item.label === "Notices") {
+                  // mark seen when clicking the card
+                  try {
+                    const countToStore = (typeof noticeCount === "number" ? noticeCount : (Array.isArray(notices) ? notices.length : 0));
+                    localStorage.setItem("noticeCountSeen", String(countToStore));
+                  } catch { }
+                  setActiveComponent("notices");
+                }
+              }}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-500 text-sm font-medium">{item.label}</p>
@@ -388,6 +436,23 @@ export default function AdminDashboard() {
                   <item.icon className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
                 </div>
               </div>
+
+              {/* notification badge for Notices card */}
+              {item.label === "Notices" && (() => {
+                const seen = getSeenNoticeCount();
+                const total = item.count ?? 0;
+                const diff = Math.max(0, Number(total) - Number(seen));
+                if (diff > 0) {
+                  return (
+                    <div className="absolute top-3 right-3">
+                      <div className="inline-flex items-center justify-center px-2 py-0.5 bg-red-600 text-white text-xs font-semibold rounded-full min-w-[26px]">
+                        {diff}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           ))}
         </div>
@@ -493,18 +558,21 @@ export default function AdminDashboard() {
         );
       case "notices":
         return (
-          <NoticeList
-            notices={notices}
-            loading={noticeLoading}
-            error={noticeError}
-            onDelete={async (id) => {
-              // deleteNotice is provided by hook
-              const res = await deleteNotice(id);
-              if (!res.success) {
-                alert("Failed to delete notice: " + (res.error || "Unknown"));
-              }
-            }}
-          />
+          <div className="p-5">
+
+            <NoticeList
+              notices={notices}
+              loading={noticeLoading}
+              error={noticeError}
+              onDelete={async (id) => {
+                // deleteNotice is provided by hook
+                const res = await deleteNotice(id);
+                if (!res.success) {
+                  alert("Failed to delete notice: " + (res.error || "Unknown"));
+                }
+              }}
+            />
+          </div>
         );
       case "courses":
         return (
@@ -528,7 +596,7 @@ export default function AdminDashboard() {
       setSidebarOpen={setSidebarOpen}
       onLogout={handleLogout}
       activeComponent={activeComponent}
-      onNavClick={(id) => setActiveComponent(id)}
+      onNavClick={handleNavClick} // <-- use the handler that clears seen count for notices
       userName={JSON.parse(localStorage.getItem("user") || "{}").name || "Admin"}
     >
       <div className="flex-1 overflow-auto">{renderContent()}</div>

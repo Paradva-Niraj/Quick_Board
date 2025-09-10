@@ -203,15 +203,10 @@ namespace Quick_Board_Backend.Controllers
                 await _context.SaveChangesAsync();
                 return Ok(new
                 {
-                    message = "Faculty updated successfully",
-                    faculty = new
-                    {
-                        faculty.FacultyId,
-                        faculty.FacultyName,
-                        faculty.FacultyMail,
-                        faculty.RequestStatus,
-                        faculty.AddedBy
-                    }
+                    id = faculty.FacultyId,
+                    name = faculty.FacultyName,
+                    mail = faculty.FacultyMail,
+                    role = "Faculty"
                 });
             }
             catch (Exception ex)

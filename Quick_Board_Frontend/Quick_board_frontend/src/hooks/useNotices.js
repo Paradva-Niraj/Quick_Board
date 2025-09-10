@@ -1,116 +1,120 @@
-// src/hooks/useNotices.js
-import { useState, useCallback, useEffect, useRef } from "react";
-import noticeApi from "../api/noticeApi";
+// src/hooks/useNotices.js - Improved version
+import { useState, useEffect, useCallback } from 'react';
+import noticeApi from '../api/noticeApi';
 
-/*
-  useNotices:
-    - fetch initial page (default limit 20)
-    - loadMore() to get older notices using before = last item's PublishedAt
-    - refresh() to refetch from newest
-*/
-export default function useNotices({ limit = 20 } = {}) {
+const useNotices = (options = {}) => {
+  const { limit = 20, before } = options;
+  
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState("");
-  const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState(null);
+  const [count, setCount] = useState(0);
 
-  const lastFetchedBeforeRef = useRef(null);
+  // Function to fetch notices
+  const fetchNotices = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    setError(null);
 
-  const fetchPage = useCallback(
-    async ({ before = null, append = false } = {}) => {
-      try {
-        if (append) setLoadingMore(true);
-        else setLoading(true);
-        setError("");
-
-        const data = await noticeApi.getAll({ before, limit });
-        // data may be null/NoContent -> our authAPI returns null; normalize to []
-        const items = Array.isArray(data) ? data : [];
-
-        // update hasMore: if returned less than limit, no more
-        setHasMore(items.length === limit);
-
-        if (append) {
-          setNotices((prev) => [...prev, ...items]);
-        } else {
-          setNotices(items);
-        }
-
-        // update lastFetchedBeforeRef to the PublishedAt of the last item (oldest)
-        if (items.length > 0) {
-          const last = items[items.length - 1];
-          lastFetchedBeforeRef.current = last.PublishedAt ?? last.publishedAt ?? null;
-        }
-        return items;
-      } catch (err) {
-        console.error("fetchPage error:", err);
-        const msg = err?.message || err?.data?.message || "Failed to load notices";
-        setError(msg);
-        return [];
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    },
-    [limit]
-  );
-
-  // initial load
-  useEffect(() => {
-    fetchPage({ before: null, append: false });
-  }, [fetchPage]);
-
-  const loadMore = useCallback(async () => {
-    if (!hasMore) return [];
-    const before = lastFetchedBeforeRef.current;
-    // if no before (no items), do not load more
-    if (!before) return [];
-    return await fetchPage({ before, append: true });
-  }, [fetchPage, hasMore]);
-
-  const refresh = useCallback(async () => {
-    lastFetchedBeforeRef.current = null;
-    setHasMore(true);
-    return await fetchPage({ before: null, append: false });
-  }, [fetchPage]);
-
-  const deleteNotice = useCallback(
-    async (id) => {
-      try {
-        await noticeApi.delete(id);
-        // remove locally for faster UX
-        setNotices((prev) => prev.filter((n) => (n.NoticeId ?? n.noticeId ?? n.id) !== id));
-        return { success: true };
-      } catch (err) {
-        console.error("deleteNotice error:", err);
-        const msg = err?.message || err?.data?.message || "Failed to delete notice";
-        return { success: false, error: msg };
-      }
-    },
-    []
-  );
-
-  const getCount = useCallback(async () => {
     try {
-      const res = await noticeApi.getCount();
-      return res?.total ?? null;
+      console.log('Fetching notices with options:', { limit, before });
+      
+      const response = await noticeApi.getAll({ limit, before });
+      console.log('Notices API response:', response);
+
+      // Handle different response structures
+      let noticesData = [];
+      if (response?.data) {
+        noticesData = Array.isArray(response.data) ? response.data : [];
+      } else if (Array.isArray(response)) {
+        noticesData = response;
+      } else if (response?.notices) {
+        noticesData = Array.isArray(response.notices) ? response.notices : [];
+      }
+
+      console.log('Parsed notices data:', noticesData);
+      setNotices(noticesData);
+
+      // Also fetch count if available
+      try {
+        const countResponse = await noticeApi.getCount();
+        const totalCount = countResponse?.count ?? countResponse?.total ?? countResponse?.data?.count ?? noticesData.length;
+        setCount(totalCount);
+      } catch (countError) {
+        console.warn('Could not fetch notice count:', countError);
+        setCount(noticesData.length);
+      }
+
     } catch (err) {
-      console.error("getCount error:", err);
-      return null;
+      console.error('Error fetching notices:', err);
+      setError(err.message || 'Failed to fetch notices');
+      setNotices([]); // Clear notices on error
+    } finally {
+      if (showLoading) setLoading(false);
     }
+  }, [limit, before]);
+
+  // Function to refresh notices (force reload)
+  const refresh = useCallback(async () => {
+    console.log('Refreshing notices...');
+    await fetchNotices(false); // Don't show loading indicator for refresh
+  }, [fetchNotices]);
+
+  // Function to delete a notice
+  const deleteNotice = useCallback(async (noticeId) => {
+    try {
+      const response = await noticeApi.delete(noticeId);
+      console.log('Delete notice response:', response);
+
+      // Check if deletion was successful
+      const isSuccess = response?.success === true || 
+                       response?.Success === true || 
+                       response?.deleted === true ||
+                       (!response?.error && !response?.Error);
+
+      if (isSuccess) {
+        // Remove notice from local state immediately for better UX
+        setNotices(prevNotices => 
+          prevNotices.filter(notice => 
+            (notice.NoticeId ?? notice.noticeId ?? notice.id) !== noticeId
+          )
+        );
+        
+        // Also refresh to ensure consistency with backend
+        setTimeout(() => refresh(), 100);
+        
+        return { success: true };
+      } else {
+        const errorMsg = response?.message || response?.error || 'Failed to delete notice';
+        return { success: false, error: errorMsg };
+      }
+    } catch (err) {
+      console.error('Error deleting notice:', err);
+      return { success: false, error: err.message || 'Failed to delete notice' };
+    }
+  }, [refresh]);
+
+  // Function to add a new notice to the list (optimistic update)
+  const addNotice = useCallback((newNotice) => {
+    console.log('Adding new notice to list:', newNotice);
+    setNotices(prevNotices => [newNotice, ...prevNotices]);
+    setCount(prevCount => prevCount + 1);
   }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchNotices();
+  }, [fetchNotices]);
 
   return {
     notices,
     loading,
-    loadingMore,
     error,
-    hasMore,
-    fetchPage,
-    loadMore,
+    count,
     refresh,
     deleteNotice,
-    getCount,
+    addNotice,
+    refetch: fetchNotices, // Alias for fetchNotices
   };
-}
+};
+
+export default useNotices;

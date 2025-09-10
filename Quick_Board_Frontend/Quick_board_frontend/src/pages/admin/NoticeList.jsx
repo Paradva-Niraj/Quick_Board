@@ -1,48 +1,74 @@
-// src/pages/admin/NoticeList.jsx
-import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
+// src/pages/admin/NoticeList.jsx - Role-based access control + improved grouping/sorting
+import React, { useState, useMemo, useCallback } from "react";
 import { Search } from "lucide-react";
 import NoticeCard from "./NoticeCard";
-import useNotices from "../../hooks/useNotices";
 
 /* Helpers */
 function friendlyDateHeading(date) {
   if (!date) return "";
   const d = new Date(date);
   const today = new Date();
-  const diffDays = Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()))/ (1000*60*60*24));
+  // diffDays = d_date - today_date in days
+  const diffDays = Math.floor(
+    (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) -
+      Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) /
+      (1000 * 60 * 60 * 24)
+  );
   if (diffDays === 0) return "Today";
   if (diffDays === -1) return "Yesterday";
-  // otherwise show human friendly: 25 Jan 2025 or "Jan 25, 2025" based on locale
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
+  return d.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: d.getFullYear() === today.getFullYear() ? undefined : "numeric",
+  });
 }
 
+/**
+ * Group notices by date (YYYY-MM-DD). Return array of groups sorted by date
+ * descending (today first). Unknown dates go last. Within each group:
+ * - pinned items first (sorted newest -> oldest)
+ * - then non-pinned items (sorted newest -> oldest)
+ */
 function groupByDate(notices) {
-  // notices expected to be ordered by pinned desc, publishedAt desc for each page
-  // We'll produce groups keyed by date string (UTC date)
-  const groups = [];
   const map = new Map();
+
   for (const n of notices) {
-    const published = n.PublishedAt ?? n.publishedAt ?? n.publishedAt;
+    const published =
+      n.PublishedAt ?? n.publishedAt ?? n.NoticeDate ?? n.createdAt ?? null;
     const d = published ? new Date(published) : null;
-    const key = d ? d.toISOString().slice(0,10) : "unknown"; // YYYY-MM-DD
+    const key = d ? d.toISOString().slice(0, 10) : "unknown";
+
     if (!map.has(key)) {
       const heading = friendlyDateHeading(d);
-      map.set(key, { key, heading, items: [] });
-      groups.push(map.get(key));
+      map.set(key, { key, heading, dateObj: d, items: [] });
     }
     map.get(key).items.push(n);
   }
 
-  // Within each group, ensure pinned come first (pinned bool may be in Pascal or camel)
-  groups.forEach(g => {
+  // Convert to array and sort groups by date descending (today, yesterday, older).
+  const groups = Array.from(map.values()).sort((a, b) => {
+    if (a.key === "unknown" && b.key === "unknown") return 0;
+    if (a.key === "unknown") return 1; // unknown go last
+    if (b.key === "unknown") return -1;
+    // Both have date keys (YYYY-MM-DD) — compare strings descending
+    if (a.key > b.key) return -1;
+    if (a.key < b.key) return 1;
+    return 0;
+  });
+
+  // For each group, sort items: pinned first, then by publishedAt desc
+  groups.forEach((g) => {
     g.items.sort((a, b) => {
       const pa = !!(a.IsPinned ?? a.isPinned);
       const pb = !!(b.IsPinned ?? b.isPinned);
       if (pa && !pb) return -1;
       if (!pa && pb) return 1;
-      // fallback: newest first
-      const da = new Date(a.PublishedAt ?? a.publishedAt);
-      const db = new Date(b.PublishedAt ?? b.publishedAt);
+      const da = new Date(
+        a.PublishedAt ?? a.publishedAt ?? a.NoticeDate ?? a.createdAt ?? 0
+      ).getTime();
+      const db = new Date(
+        b.PublishedAt ?? b.publishedAt ?? b.NoticeDate ?? b.createdAt ?? 0
+      ).getTime();
       return db - da;
     });
   });
@@ -51,139 +77,251 @@ function groupByDate(notices) {
 }
 
 /* Component */
-export default function NoticeListPage() {
-  const {
-    notices,
-    loading,
-    loadingMore,
-    error,
-    hasMore,
-    loadMore,
-    refresh,
-    deleteNotice,
-  } = useNotices({ limit: 20 });
-
+export default function NoticeList({
+  notices = [],
+  loading = false,
+  error = null,
+  onDelete = null,
+  showSearch = true,
+  showFilters = true,
+}) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [filter, setFilter] = useState("all"); // all | pinned | recent
-  const sentinelRef = useRef(null);
+  const [searchField, setSearchField] = useState("all");
+  const [filter, setFilter] = useState("all");
 
-  // derived filtered list by search & filter
+  // Get current user from localStorage
+  const currentUser = useMemo(() => {
+    try {
+      const userData = localStorage.getItem("user");
+      return userData ? JSON.parse(userData) : {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const userRole = (currentUser?.role || "").toString().toLowerCase();
+  const userId = currentUser?.id;
+
+  // Determine delete permission per notice
+  const canDeleteNotice = useCallback(
+    (notice) => {
+      if (userRole === "student") return false;
+      if (userRole === "admin") return true;
+
+      if (userRole === "faculty") {
+        const noticeAuthorId =
+          notice.NoticeWrittenBy ?? notice.noticeWrittenBy ?? notice.authorId;
+        return Number(noticeAuthorId) === Number(userId);
+      }
+      return false;
+    },
+    [userRole, userId]
+  );
+
+  // Normalize notices into a stable shape
   const normalized = useMemo(() => {
-    return (notices || []).map(n => ({
+    return (notices || []).map((n) => ({
       ...n,
       id: n.NoticeId ?? n.noticeId ?? n.id,
-      title: n.NoticeTitle ?? n.noticeTitle,
-      description: n.NoticeDescription ?? n.noticeDescription,
-      publishedAt: n.PublishedAt ?? n.publishedAt,
-      authorName: n.AuthorName ?? n.authorName,
+      title: n.NoticeTitle ?? n.noticeTitle ?? "",
+      description: n.NoticeDescription ?? n.noticeDescription ?? "",
+      publishedAt:
+        n.PublishedAt ?? n.publishedAt ?? n.NoticeDate ?? n.createdAt ?? null,
+      authorName: n.AuthorName ?? n.authorName ?? "",
       isPinned: !!(n.IsPinned ?? n.isPinned),
-      file: n.File ?? n.file,
-      image: n.Image ?? n.image,
-      authorType: n.AuthorType ?? n.authorType,
-      priority: n.Priority ?? n.priority
+      file: n.File ?? n.file ?? null,
+      image: n.Image ?? n.image ?? null,
+      authorType: n.AuthorType ?? n.authorType ?? null,
+      priority: n.Priority ?? n.priority ?? null,
+      canDelete: canDeleteNotice(n),
     }));
-  }, [notices]);
+  }, [notices, canDeleteNotice]);
 
+  // Apply filter & search
   const filtered = useMemo(() => {
     const term = (searchTerm || "").trim().toLowerCase();
     let s = normalized;
-    if (filter === "pinned") s = s.filter(x => x.isPinned);
-    else if (filter === "recent") s = [...s].sort((a,b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-    if (!term) return s;
-    return s.filter(x => (x.title||"").toLowerCase().includes(term) || (x.description||"").toLowerCase().includes(term) || (x.authorName||"").toLowerCase().includes(term));
-  }, [normalized, searchTerm, filter]);
 
-  // grouping
+    if (filter === "pinned") {
+      s = s.filter((x) => x.isPinned);
+    } else if (filter === "recent") {
+      const now = Date.now();
+      s = s.filter((x) => {
+        const d = new Date(x.publishedAt);
+        const diffHours = (now - d.getTime()) / (1000 * 60 * 60);
+        return diffHours <= 2;
+      });
+      s = [...s].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+    }
+
+    if (!term) return s;
+
+    return s.filter((x) => {
+      switch (searchField) {
+        case "id":
+          return String(x.id || "").includes(term);
+        case "title":
+          return (x.title || "").toLowerCase().includes(term);
+        case "description":
+          return (x.description || "").toLowerCase().includes(term);
+        case "author":
+          return (x.authorName || "").toLowerCase().includes(term);
+        default:
+          return (
+            String(x.id || "").includes(term) ||
+            (x.title || "").toLowerCase().includes(term) ||
+            (x.description || "").toLowerCase().includes(term) ||
+            (x.authorName || "").toLowerCase().includes(term)
+          );
+      }
+    });
+  }, [normalized, searchTerm, filter, searchField]);
+
+  // Group by date and sort groups (today first) and items inside groups
   const groups = useMemo(() => groupByDate(filtered), [filtered]);
 
-  // infinite scroll with IntersectionObserver
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-    const el = sentinelRef.current;
-    const obs = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting && hasMore && !loadingMore) {
-          loadMore();
-        }
-      });
-    }, { root: null, rootMargin: "300px", threshold: 0.1 });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [loadMore, hasMore, loadingMore]);
-
   const handleDelete = async (id) => {
-    const res = await deleteNotice(id);
-    if (!res.success) {
-      alert("Failed to delete notice: " + (res.error || "Unknown"));
+    if (!onDelete) return;
+
+    const notice = normalized.find((n) => n.id === id);
+    if (!notice?.canDelete) {
+      alert("You don't have permission to delete this notice.");
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this notice?")) return;
+
+    const res = await onDelete(id);
+    if (res && !res.success) {
+      alert("Failed to delete notice: " + (res.error || "Unknown error"));
     }
   };
 
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Loading notices...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+        <p className="text-red-700">Error: {error}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 lg:p-6">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Notice Feed</h1>
-        </div>
+    <div className="space-y-4">
+      {/* Search and Filters */}
+      {(showSearch || showFilters) && (
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          {showFilters && (
+            <div className="flex items-center space-x-2 bg-white p-1 rounded-lg shadow-sm">
+              <button
+                onClick={() => setFilter("all")}
+                className={`px-3 py-1 rounded-md text-sm ${
+                  filter === "all" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                All
+              </button>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="flex items-center space-x-2 bg-white p-1 rounded-lg shadow-sm">
-            <button onClick={() => setFilter("all")} className={`px-3 py-1 rounded-md text-sm ${filter === "all" ? "bg-blue-600 text-white" : "text-gray-700"}`}>All</button>
-            <button onClick={() => setFilter("pinned")} className={`px-3 py-1 rounded-md text-sm ${filter === "pinned" ? "bg-yellow-500 text-white" : "text-gray-700"}`}>Pinned</button>
-            <button onClick={() => setFilter("recent")} className={`px-3 py-1 rounded-md text-sm ${filter === "recent" ? "bg-green-600 text-white" : "text-gray-700"}`}>Recent</button>
-          </div>
+              <button
+                onClick={() => setFilter("pinned")}
+                className={`px-3 py-1 rounded-md text-sm ${
+                  filter === "pinned" ? "bg-yellow-500 text-white" : "text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                Pinned
+              </button>
 
-          <div className="relative w-full md:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search title, description or author..."
-              className="pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full"
-            />
-          </div>
-        </div>
-      </div>
-
-      {error && <div className="mb-4 p-3 rounded bg-red-50 text-red-700">{error}</div>}
-
-      <div className="flex flex-col gap-4">
-        {groups.length === 0 && !loading && <div className="text-gray-600">No notices found</div>}
-
-        {groups.map(group => (
-          <section key={group.key}>
-            <div className="py-1 text-sm text-gray-500 font-medium text-center mb-3">{group.heading || group.key}</div>
-            <div className="grid grid-cols-1 gap-4">
-              {group.items.map(n => (
-                <div key={(n.id ?? n.title ?? Math.random()).toString()}>
-                  <NoticeCard
-                    notice={{
-                      NoticeId: n.id,
-                      NoticeTitle: n.title,
-                      NoticeDescription: n.description,
-                      PublishedAt: n.publishedAt,
-                      AuthorName: n.authorName,
-                      Image: n.image,
-                      File: n.file,
-                      IsPinned: n.isPinned,
-                      Priority: n.priority,
-                      AuthorType: n.authorType
-                    }}
-                    onDelete={handleDelete}
-                    canDelete={true}
-                  />
-                </div>
-              ))}
+              <button
+                onClick={() => setFilter("recent")}
+                className={`px-3 py-1 rounded-md text-sm ${
+                  filter === "recent" ? "bg-green-600 text-white" : "text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                Recent
+              </button>
             </div>
-          </section>
-        ))}
+          )}
 
-        {loading && <div className="text-center py-6"><div className="animate-spin h-8 w-8 border-b-2 border-gray-500 mx-auto"></div></div>}
+          {showSearch && (
+            <div className="flex gap-2 w-full md:w-auto">
+              <select
+                value={searchField}
+                onChange={(e) => setSearchField(e.target.value)}
+                className="border border-gray-200 rounded-lg text-sm px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All</option>
+                <option value="id">ID</option>
+                <option value="title">Title</option>
+                <option value="description">Description</option>
+                <option value="author">Author</option>
+              </select>
 
-        <div ref={sentinelRef} />
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search notices..."
+                  className="pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
-        {loadingMore && <div className="text-center py-4"><div className="animate-spin h-6 w-6 border-b-2 border-gray-500 mx-auto"></div></div>}
-        {!hasMore && !loading && <div className="text-center py-4 text-gray-500">You've reached the end.</div>}
+      {/* Notice Groups */}
+      <div className="space-y-6">
+        {groups.length === 0 ? (
+          <div className="text-center py-8 text-gray-600">No notices found</div>
+        ) : (
+          groups.map((group) => (
+            <section key={group.key} className="space-y-4">
+              <div className="text-sm text-gray-500 font-medium text-center py-2 bg-gray-50 rounded">
+                {group.heading || group.key}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {group.items.map((notice) => (
+                  <div key={notice.id ?? JSON.stringify(notice)}>
+                    <NoticeCard
+                      notice={{
+                        NoticeId: notice.id,
+                        NoticeTitle: notice.title,
+                        NoticeDescription: notice.description,
+                        PublishedAt: notice.publishedAt,
+                        AuthorName: notice.authorName,
+                        Image: notice.image,
+                        File: notice.file,
+                        IsPinned: notice.isPinned,
+                        Priority: notice.priority,
+                        AuthorType: notice.authorType,
+                      }}
+                      onDelete={notice.canDelete ? handleDelete : null}
+                      canDelete={notice.canDelete}
+                      showDeleteButton={notice.canDelete}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))
+        )}
       </div>
+
+      {filtered.length === 0 && groups.length === 0 && !loading && (
+        <div className="text-center py-8 text-gray-500">
+          No notices match your search criteria
+        </div>
+      )}
     </div>
   );
 }

@@ -19,46 +19,71 @@ export default function NoticeForm({ initial = null, onClose, onCreated }) {
       return {};
     }
   })();
+
+  // determine a consistent NoticeWrittenBy (id) and normalized AuthorType ("Admin" | "Faculty")
   const facultyId = currentUser?.id ?? currentUser?.FacultyId ?? currentUser?.facultyId ?? null;
+  const rawRole = currentUser?.role ?? currentUser?.AuthorType ?? currentUser?.authorType ?? null;
+  const authorType = rawRole
+    ? (String(rawRole).toLowerCase() === "admin" ? "Admin" : "Faculty")
+    : (facultyId ? "Faculty" : "Admin"); // fallback: if we have an id assume Faculty else Admin
 
   // create/update submit handler
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setSaving(true);
 
-    try {
-      // payload keys matching backend expectation - adjust names if backend uses different ones
-      const payload = {
-        NoticeTitle: title,
-        NoticeDescription: description,
-        Image: image || null,
-        File: file || null,
-        IsPinned: Boolean(isPinned),
-        Priority: Number(priority),
-        NoticeWrittenBy: facultyId,
-      };
-
-      if (initial && (initial.NoticeId || initial.id)) {
-        // update
-        const id = initial.NoticeId ?? initial.id;
-        await noticeApi.update(id, payload);
-        alert("Notice updated");
-      } else {
-        // create
-        await noticeApi.create(payload);
-        alert("Notice created");
-      }
-
-      onCreated && onCreated(); // parent will refresh list / close modal
-      onClose && onClose();
-    } catch (err) {
-      console.error("Notice save error:", err);
-      const message = err?.response?.data?.message || err?.message || "Failed to save notice";
-      alert(message);
-    } finally {
+  try {
+    // Ensure we have a NoticeWrittenBy (backend expects int)
+    const noticeWriter = facultyId ?? currentUser?.id ?? null;
+    if (!noticeWriter) {
+      // cannot proceed if backend expects an int for NoticeWrittenBy
+      alert("No logged user id found. Please login again.");
       setSaving(false);
+      return;
     }
-  };
+
+    // payload keys matching backend expectation
+    const payload = {
+      NoticeTitle: title,
+      NoticeDescription: description,
+      Image: image || null,
+      File: file || null,
+      IsPinned: Boolean(isPinned),
+      Priority: Number(priority),
+      NoticeWrittenBy: Number(noticeWriter),
+      AuthorType: authorType, // <- REQUIRED by backend DTO
+    };
+
+    console.debug("Submitting notice payload:", payload);
+
+    if (initial && (initial.NoticeId || initial.id)) {
+      // UPDATE CASE
+      const id = initial.NoticeId ?? initial.id;
+      const response = await noticeApi.update(id, payload);
+      
+      console.log("Update response:", response);
+      alert("Notice updated");
+      
+    } else {
+      // CREATE CASE
+      const response = await noticeApi.create(payload);
+      
+      console.log("Create response:", response);
+      alert("Notice created");
+    }
+
+    // ✨ SIMPLE: Just call onCreated() - dashboard will handle the refresh
+    onCreated && onCreated();
+    onClose && onClose();
+    
+  } catch (err) {
+    console.error("Notice save error:", err);
+    const message = err?.response?.data?.message || err?.message || "Failed to save notice";
+    alert(message);
+  } finally {
+    setSaving(false);
+  }
+};
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">

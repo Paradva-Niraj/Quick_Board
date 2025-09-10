@@ -1,4 +1,3 @@
-// src/pages/faculty/FacultyLayout.jsx
 import React from "react";
 import { Menu, X, LogOut } from "lucide-react";
 
@@ -19,7 +18,7 @@ export default function FacultyLayout({
   onLogout,
   activeItem,
   onNavClick,
-  userName = "Faculty"
+  userName = "Faculty",
 }) {
   const navItems = [
     { id: "overview", label: "Overview" },
@@ -30,7 +29,7 @@ export default function FacultyLayout({
   ];
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row">
       {/* Mobile header */}
       <div className="lg:hidden bg-white shadow-sm border-b border-gray-200 p-4">
         <div className="flex items-center justify-between">
@@ -50,7 +49,10 @@ export default function FacultyLayout({
       </div>
 
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:w-64 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out
+   ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+      >
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-gray-200 flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -74,8 +76,15 @@ export default function FacultyLayout({
                 return (
                   <button
                     key={item.id}
-                    onClick={() => { onNavClick?.(item.id); setSidebarOpen(false); }}
-                    className={`w-full flex items-center px-4 py-3 rounded-xl text-left transition-all duration-200 ${active ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}
+                    onClick={() => {
+                      onNavClick?.(item.id);
+                      setSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center px-4 py-3 rounded-xl text-left transition-all duration-200 ${
+                      active
+                        ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+                    }`}
                   >
                     <span className="font-medium truncate">{item.label}</span>
                   </button>
@@ -88,26 +97,28 @@ export default function FacultyLayout({
             <div className="text-sm text-gray-600 mb-3">Signed in as</div>
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-gray-800 truncate">{userName}</div>
-              <button onClick={onLogout} className="text-red-600 hover:bg-red-50 px-3 py-2 rounded">Logout</button>
+              <button onClick={onLogout} className="text-red-600 hover:bg-red-50 px-3 py-2 rounded">
+                Logout
+              </button>
             </div>
           </div>
         </div>
       </aside>
 
       {/* backdrop for mobile when sidebar open */}
-      {sidebarOpen && <div className="fixed inset-0 bg-gray-200/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-gray-200/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
 
       {/* Main content area */}
-      <main className="flex-1 overflow-auto">
-        {/* Top header */}
+      <main className="flex-1 overflow-auto lg:ml-64">
+        {/* Top header (desktop) */}
         <div className="hidden lg:flex items-center justify-end bg-white border-b border-gray-200 px-6 py-3">
           <div className="text-sm text-gray-600 mr-3">Hello,</div>
           <div className="text-sm font-semibold text-gray-800">{userName}</div>
         </div>
 
-        <div className="p-4 lg:p-6">
-          {children}
-        </div>
+        <div className="p-4 lg:p-6">{children}</div>
       </main>
     </div>
   );

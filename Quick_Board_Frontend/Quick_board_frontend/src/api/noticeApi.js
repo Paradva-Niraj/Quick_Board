@@ -1,11 +1,12 @@
-// src/api/noticeApi.js
 import { authAPI } from "./authApi";
 
 /*
   Notice API wrapper with pagination support
-  GET /Notice?before=2025-01-02T15:04:05Z&limit=20
-  GET /Notice/count
-  DELETE /Notice/{id}
+  - getAll: GET /Notice?before=ISO_DATE&limit=20
+  - getCount: GET /Notice/count
+  - delete: DELETE /Notice/{id}
+  - create: POST /Notice
+  - update: PUT /Notice/{id}
 */
 
 const noticeApi = {
