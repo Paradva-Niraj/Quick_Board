@@ -158,6 +158,91 @@ namespace Quick_Board_Backend.Controllers
             }
         }
 
+        // inside Quick_Board_Backend.Controllers.StudentController
+
+        // PUT: api/Student/{id}
+        // Allow authenticated users to update their own profile (or admins if you add role checks).
+        [HttpPut("{id}")]   
+        [Authorize(Roles = "Student")]// keep this, you can tighten role checks if desired
+        public async Task<IActionResult> UpdateStudent(int id, [FromBody] StudentUpdateDto dto)
+        {
+            // Find student
+            var student = await _context.Students.FindAsync(id);
+            if (student == null)
+                return NotFound(new { message = $"Student with ID {id} not found" });
+
+            // Optional: Enforce that only the same student or admins can update.
+            // If you use JWT with user id claim, you can compare and reject unauthorized updates.
+            // Example commented code:
+            // var claimId = User.FindFirst("id")?.Value;
+            // if (!User.IsInRole("Admin") && (claimId == null || !int.TryParse(claimId, out var cid) || cid != id))
+            //     return Forbid();
+
+            // Validate course if passed
+            if (dto.StudentCourseId.HasValue)
+            {
+                var course = await _context.Courses.FindAsync(dto.StudentCourseId.Value);
+                if (course == null)
+                    return BadRequest(new { message = $"Course with ID {dto.StudentCourseId.Value} not found" });
+                student.StudentCourseId = dto.StudentCourseId.Value;
+            }
+
+            // Update name if provided
+            if (!string.IsNullOrWhiteSpace(dto.StudentName))
+                student.StudentName = dto.StudentName.Trim();
+
+            // Update email if provided and unique across students/admins/faculty
+            if (!string.IsNullOrWhiteSpace(dto.StudentMail))
+            {
+                var emailLower = dto.StudentMail.Trim().ToLower();
+                var exists = await _context.Students.AnyAsync(s => s.StudentId != id && s.StudentMail.ToLower() == emailLower);
+                if (exists)
+                    return BadRequest(new { message = "Email already used by another student." });
+
+                var adminExists = await _context.Admins.AnyAsync(a => a.AdminMail.ToLower() == emailLower);
+                if (adminExists)
+                    return BadRequest(new { message = "Email already registered as Admin. Choose a different email." });
+
+                var facultyExists = await _context.Faculties.AnyAsync(f => f.FacultyMail.ToLower() == emailLower);
+                if (facultyExists)
+                    return BadRequest(new { message = "Email already registered as Faculty. Choose a different email." });
+
+                student.StudentMail = dto.StudentMail.Trim();
+            }
+
+            // Update password only when provided and non-empty
+            if (!string.IsNullOrWhiteSpace(dto.StudentPassword))
+            {
+                var hasher = new PasswordHasher<Student>();
+                student.StudentPassword = hasher.HashPassword(student, dto.StudentPassword);
+            }
+
+            try
+            {
+                await _context.SaveChangesAsync();
+
+                // Build StudentReadDto to return
+                var courseObj = await _context.Courses.FindAsync(student.StudentCourseId);
+                var resultDto = new StudentReadDto
+                {
+                    StudentId = student.StudentId,
+                    StudentName = student.StudentName,
+                    StudentMail = student.StudentMail,
+                    RequestStatus = student.RequestStatus,
+                    ApprovedBy = student.ApprovedBy,
+                    StudentCourseId = student.StudentCourseId,
+                    CourseName = courseObj?.CourseName,
+                    ApprovedByFaculty = student.Faculty != null ? student.Faculty.FacultyName : null
+                };
+
+                return Ok(resultDto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error updating student", error = ex.Message });
+            }
+        }
+
         // DELETE: api/Student/{id}
         [HttpDelete("{id}")]
         [Authorize(Roles = "Faculty,Admin")]

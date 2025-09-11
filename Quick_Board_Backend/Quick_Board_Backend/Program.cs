@@ -96,8 +96,14 @@ await File.WriteAllTextAsync(tempCertPath, caCertContent);
 
 var connectionString = $"server={dbHost};port={dbPort};database={dbName};user={dbUser};password={dbPassword};SslMode=Required;SslCa={tempCertPath};";
 
+//cluode connection string
 builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+
+//builder.Services.AddDbContext<AppDbContext>(options =>
+        //options.UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"),
+        //ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))));
+
 // Register CORS
 builder.Services.AddCors(options =>
 {

@@ -27,4 +27,14 @@
     {
         public int FacultyId { get; set; } // ✅ Use FacultyId instead of ApprovedBy
     }
+
+    public class StudentUpdateDto
+    {
+        public string? StudentName { get; set; }
+        public string? StudentMail { get; set; }
+        public int? StudentCourseId { get; set; }
+
+        // If this is null or empty, controller will NOT update the password
+        public string? StudentPassword { get; set; }
+    }
 }

@@ -239,14 +239,14 @@ export default function NoticeList({
                 Pinned
               </button>
 
-              <button
+              {/* <button
                 onClick={() => setFilter("recent")}
                 className={`px-3 py-1 rounded-md text-sm ${
                   filter === "recent" ? "bg-green-600 text-white" : "text-gray-700 hover:bg-gray-50"
                 }`}
               >
                 Recent
-              </button>
+              </button> */}
             </div>
           )}
 
