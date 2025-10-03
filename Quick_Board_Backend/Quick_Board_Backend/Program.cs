@@ -5,24 +5,35 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text.Json;
 using DotNetEnv;
-Env.Load();
+
+// Only load .env file in development
+if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Production")
+{
+    Env.Load();
+}
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Railway PORT
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
 builder.Configuration
     .AddEnvironmentVariables();
+
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var config = builder.Configuration;
-var jwtKey = config["Jwt:Key"] ?? throw new Exception("Jwt:Key missing");
-var jwtIssuer = config["Jwt:Issuer"] ?? "QuickBoardAPI";
-var jwtAudience = config["Jwt:Audience"] ?? "QuickBoardClient";
+// Fix: Use double underscore for Railway environment variables
+var jwtKey = config["Jwt__Key"] ?? config["Jwt:Key"] ?? throw new Exception("Jwt__Key missing");
+var jwtIssuer = config["Jwt__Issuer"] ?? config["Jwt:Issuer"] ?? "QuickBoardAPI";
+var jwtAudience = config["Jwt__Audience"] ?? config["Jwt:Audience"] ?? "QuickBoardClient";
 var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
 
 //for jwt auth
-
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -30,7 +41,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = true; // set false only for local dev if you must
+    options.RequireHttpsMetadata = true;
     options.SaveToken = true;
 
     options.TokenValidationParameters = new TokenValidationParameters
@@ -42,15 +53,14 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidAudience = jwtAudience,
         ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero // strict expiry handling
+        ClockSkew = TimeSpan.Zero
     };
 
-    // Customize responses for expired/invalid/missing tokens so frontend can react
     options.Events = new JwtBearerEvents
     {
         OnAuthenticationFailed = async context =>
         {
-            context.NoResult(); // stop other handlers
+            context.NoResult();
 
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             context.Response.ContentType = "application/json";
@@ -70,7 +80,6 @@ builder.Services.AddAuthentication(options =>
 
         OnChallenge = async context =>
         {
-            // When no token was provided or other challenge reasons
             if (!context.Response.HasStarted)
             {
                 context.HandleResponse();
@@ -83,6 +92,7 @@ builder.Services.AddAuthentication(options =>
         }
     };
 });
+
 var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? throw new Exception("DB_HOST environment variable is missing");
 var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? throw new Exception("DB_PORT environment variable is missing");
 var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? throw new Exception("DB_NAME environment variable is missing");
@@ -90,43 +100,47 @@ var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? throw new Exceptio
 var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? throw new Exception("DB_PASSWORD environment variable is missing");
 var caCertContent = Environment.GetEnvironmentVariable("CA_CERT_CONTENT") ?? throw new Exception("CA_CERT_CONTENT environment variable is missing");
 
+// Remove quotes from CA_CERT_CONTENT if present
+caCertContent = caCertContent.Trim('"');
+
 // Create a temporary certificate file
 var tempCertPath = Path.Combine(Path.GetTempPath(), $"ca-cert-{Guid.NewGuid()}.pem");
 await File.WriteAllTextAsync(tempCertPath, caCertContent);
 
 var connectionString = $"server={dbHost};port={dbPort};database={dbName};user={dbUser};password={dbPassword};SslMode=Required;SslCa={tempCertPath};";
 
-//cluode connection string
+// Database connection
 builder.Services.AddDbContext<AppDbContext>(options =>
-options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-//builder.Services.AddDbContext<AppDbContext>(options =>
-        //options.UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"),
-        //ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))));
-
-// Register CORS
+// Updated CORS to support both local and production
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
-        policy.WithOrigins("http://localhost:5173") // no trailing slas
+    {
+        var origins = new List<string> { "http://localhost:5173" };
+
+        var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL");
+        if (!string.IsNullOrEmpty(frontendUrl))
+        {
+            origins.Add(frontendUrl);
+        }
+
+        policy.WithOrigins(origins.ToArray())
               .AllowAnyHeader()
               .AllowAnyMethod()
-    );
+              .AllowCredentials();
+    });
 });
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 
-// Enable CORS BEFORE Authorization & MapControllers
 app.UseCors("AllowReactApp");
-//jwt use 1st line
 app.UseAuthentication();
 app.UseAuthorization();
 
