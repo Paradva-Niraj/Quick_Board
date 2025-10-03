@@ -6,7 +6,6 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text.Json;
 using DotNetEnv;
 
-// Only load .env file in development
 if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Production")
 {
     Env.Load();
@@ -14,26 +13,23 @@ if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Production"
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Railway PORT
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
-builder.Configuration
-    .AddEnvironmentVariables();
+builder.Configuration.AddEnvironmentVariables();
 
-// Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var config = builder.Configuration;
-// Fix: Use double underscore for Railway environment variables
-var jwtKey = config["Jwt__Key"] ?? config["Jwt:Key"] ?? throw new Exception("Jwt__Key missing");
-var jwtIssuer = config["Jwt__Issuer"] ?? config["Jwt:Issuer"] ?? "QuickBoardAPI";
-var jwtAudience = config["Jwt__Audience"] ?? config["Jwt:Audience"] ?? "QuickBoardClient";
+
+// Use simple variable names without colons or double underscores
+var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY") ?? throw new Exception("JWT_KEY missing");
+var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "QuickBoardAPI";
+var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "QuickBoardClient";
 var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
 
-//for jwt auth
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -61,7 +57,6 @@ builder.Services.AddAuthentication(options =>
         OnAuthenticationFailed = async context =>
         {
             context.NoResult();
-
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             context.Response.ContentType = "application/json";
 
@@ -93,43 +88,31 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? throw new Exception("DB_HOST environment variable is missing");
-var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? throw new Exception("DB_PORT environment variable is missing");
-var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? throw new Exception("DB_NAME environment variable is missing");
-var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? throw new Exception("DB_USER environment variable is missing");
-var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? throw new Exception("DB_PASSWORD environment variable is missing");
-var caCertContent = Environment.GetEnvironmentVariable("CA_CERT_CONTENT") ?? throw new Exception("CA_CERT_CONTENT environment variable is missing");
+var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? throw new Exception("DB_HOST missing");
+var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? throw new Exception("DB_PORT missing");
+var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? throw new Exception("DB_NAME missing");
+var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? throw new Exception("DB_USER missing");
+var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? throw new Exception("DB_PASSWORD missing");
+var caCertContent = Environment.GetEnvironmentVariable("CA_CERT_CONTENT") ?? throw new Exception("CA_CERT_CONTENT missing");
 
-// Remove quotes from CA_CERT_CONTENT if present
 caCertContent = caCertContent.Trim('"');
 
-// Create a temporary certificate file
 var tempCertPath = Path.Combine(Path.GetTempPath(), $"ca-cert-{Guid.NewGuid()}.pem");
 await File.WriteAllTextAsync(tempCertPath, caCertContent);
 
 var connectionString = $"server={dbHost};port={dbPort};database={dbName};user={dbUser};password={dbPassword};SslMode=Required;SslCa={tempCertPath};";
 
-// Database connection
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-// Updated CORS to support both local and production
+// CORS - Allow all origins for development/testing
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowReactApp", policy =>
+    options.AddPolicy("AllowAll", policy =>
     {
-        var origins = new List<string> { "http://localhost:5173" };
-
-        var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL");
-        if (!string.IsNullOrEmpty(frontendUrl))
-        {
-            origins.Add(frontendUrl);
-        }
-
-        policy.WithOrigins(origins.ToArray())
+        policy.AllowAnyOrigin()
               .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowAnyMethod();
     });
 });
 
@@ -140,7 +123,7 @@ app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 
-app.UseCors("AllowReactApp");
+app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 
