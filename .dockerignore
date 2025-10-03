@@ -1,0 +1,30 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+documnets/
+dbbackup/
+
+# Frontend (we don't need this for backend deployment)
+Quick_Board_Frontend/
+
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# Visual Studio files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Other files
+*.http
+launchSettings.json
