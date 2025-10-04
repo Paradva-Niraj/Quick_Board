@@ -1,10 +1,12 @@
 // src/components/forms/FacultyRegisterForm.jsx
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { AlertCircle, CheckCircle, Eye, EyeOff, User, Mail, Lock } from "lucide-react";
 import InputField from "../ui/InputField";
 import { registerFaculty } from "../../api/authApi";
 
 export default function FacultyRegisterForm() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     FacultyName: "",
     FacultyMail: "",
@@ -221,12 +223,13 @@ export default function FacultyRegisterForm() {
             <div className="text-center pt-6 border-t border-gray-100">
               <p className="text-gray-600">
                 Already have an account?{" "}
-                <a
-                  href="/login"
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
                   className="font-semibold text-blue-600 hover:text-blue-500 transition-colors hover:underline"
                 >
                   Sign in here
-                </a>
+                </button>
               </p>
             </div>
           </form>

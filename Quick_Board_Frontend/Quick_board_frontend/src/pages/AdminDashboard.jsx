@@ -1,5 +1,6 @@
 // src/pages/AdminDashboard.jsx
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
   Users,
@@ -96,6 +97,9 @@ export default function AdminDashboard() {
   // first login welcome
   const [isFirstLogin, setIsFirstLogin] = useState(false);
 
+  //navigation 
+  const navigate = useNavigate();
+
   useEffect(() => {
     const lastLogin = localStorage.getItem("lastLogin");
     if (!lastLogin) {
@@ -186,7 +190,7 @@ export default function AdminDashboard() {
       localStorage.removeItem("authToken");
       localStorage.removeItem("user");
       localStorage.setItem("lastLogin", new Date().toISOString());
-      window.location.href = "/login";
+      navigate('/login');
     }
   }, []);
 

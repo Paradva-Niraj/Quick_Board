@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { AlertCircle, CheckCircle, Eye, EyeOff, User, Mail, Lock, BookOpen } from "lucide-react";
 import InputField from "../ui/InputField";
 import { registerStudent, getCourses } from "../../api/authApi";
 
 export default function StudentRegisterForm() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     StudentName: "",
     StudentMail: "",
@@ -27,9 +29,12 @@ export default function StudentRegisterForm() {
     const fetchCourses = async () => {
       try {
         const res = await getCourses();
-        setCourses(res.data);
+        // Handle both array and object responses
+        const courseData = Array.isArray(res) ? res : res?.data || [];
+        setCourses(courseData);
       } catch (err) {
         console.error("Error fetching courses:", err);
+        setCourses([]);
       }
     };
     fetchCourses();
@@ -210,7 +215,7 @@ export default function StudentRegisterForm() {
                   }`}
                 >
                   <option value="">Choose your course</option>
-                  {courses.map((course) => (
+                  {Array.isArray(courses) && courses.map((course) => (
                     <option key={course.courseId} value={course.courseId}>
                       {course.courseName}
                     </option>
@@ -257,12 +262,13 @@ export default function StudentRegisterForm() {
             <div className="text-center pt-6 border-t border-gray-100">
               <p className="text-gray-600">
                 Already have an account?{" "}
-                <a
-                  href="/login"
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
                   className="font-semibold text-blue-600 hover:text-blue-500 transition-colors hover:underline"
                 >
                   Sign in here
-                </a>
+                </button>
               </p>
             </div>
           </form>
