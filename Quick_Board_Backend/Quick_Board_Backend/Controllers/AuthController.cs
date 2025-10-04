@@ -106,10 +106,10 @@ public class AuthController : ControllerBase
             }
 
             // Build token
-            var jwtKey = _config["Jwt:Key"] ?? throw new Exception("Jwt:Key missing");
-            var jwtIssuer = _config["Jwt:Issuer"] ?? "QuickBoardAPI";
-            var jwtAudience = _config["Jwt:Audience"] ?? "QuickBoardClient";
-            var expiresMinutes = int.TryParse(_config["Jwt:ExpiresInMinutes"], out var m) ? m : 1440;
+            var jwtKey = _config["Jwt_Key"] ?? throw new Exception("Jwt:Key missing");
+            var jwtIssuer = _config["Jwt_Issuer"] ?? "QuickBoardAPI";
+            var jwtAudience = _config["Jwt_Audience"] ?? "QuickBoardClient";
+            var expiresMinutes = int.TryParse(_config["Jwt_ExpiresInMinutes"], out var m) ? m : 1440;
             var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
 
             var claims = new List<Claim>
