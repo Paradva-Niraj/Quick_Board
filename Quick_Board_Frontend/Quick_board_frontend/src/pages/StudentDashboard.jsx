@@ -4,6 +4,7 @@ import StudentLayout from "./student/StudentLayout";
 import { FileText, RefreshCw, User, Edit2, Save } from "lucide-react";
 import NoticeList from "./admin/NoticeList";
 import useNotices from "../hooks/useNotices";
+import { useNavigate } from "react-router-dom";
 
 // Read user from localStorage safely
 function readLocalUser() {
@@ -184,6 +185,9 @@ export default function StudentDashboard() {
 
   const handleDeleteNotice = null;
 
+  //navigation
+  const navigate = useNavigate();
+
   return (
     <StudentLayout
       sidebarOpen={sidebarOpen}
@@ -191,7 +195,7 @@ export default function StudentDashboard() {
       onLogout={() => {
         localStorage.removeItem("authToken");
         localStorage.removeItem("user");
-        window.location.href = "/login";
+        navigate("/login");
       }}
       activeItem={active}
       onNavClick={handleNavClick}

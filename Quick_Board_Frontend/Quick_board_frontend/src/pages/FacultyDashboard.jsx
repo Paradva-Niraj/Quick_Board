@@ -13,6 +13,7 @@ import { Plus, FileText, Users, BookOpen, RefreshCw } from "lucide-react";
 import useStudents from "../hooks/useStudents";
 import useNotices from "../hooks/useNotices";
 import useCourses from "../hooks/useCourses";
+import { useNavigate } from "react-router-dom";
 
 const StudentList = lazy(() => import("./admin/StudentList"));
 const NoticeList = lazy(() => import("./admin/NoticeList"));
@@ -31,6 +32,9 @@ export default function FacultyDashboard() {
       return {};
     }
   });
+
+  //naviagte
+  const navigate = useNavigate();
 
   // Listen for localStorage changes from other tabs/windows
   useEffect(() => {
@@ -272,7 +276,7 @@ export default function FacultyDashboard() {
     if (window.confirm("Are you sure you want to logout?")) {
       localStorage.removeItem("authToken");
       localStorage.removeItem("user");
-      window.location.href = "/login";
+      navigate("/login");
     }
   }, []);
 
