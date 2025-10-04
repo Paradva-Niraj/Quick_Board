@@ -36,7 +36,10 @@ export default function StudentDashboard() {
     error: noticesError,
     refresh: refreshNotices,
     count: noticesCount,
-  } = useNotices({ limit: 50 });
+    hasMore: hasMoreNotices,
+    loadingMore: loadingMoreNotices,
+    loadMore: loadMoreNotices
+  } = useNotices({ initialLimit: 20 });
 
   const visibleNotices = useMemo(
     () => (Array.isArray(notices) ? notices : []),
@@ -319,8 +322,7 @@ export default function StudentDashboard() {
                   <FileText className="w-5 h-5" /> Notices
                 </div>
                 <div className="text-sm text-gray-500">
-                  {visibleNotices.length} notice
-                  {visibleNotices.length !== 1 ? "s" : ""}
+                  {visibleNotices.length} notice{visibleNotices.length !== 1 ? "s" : ""}
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -329,15 +331,13 @@ export default function StudentDashboard() {
                     {computeNoticeDiff()} new
                   </div>
                 )}
-                <button
-                  onClick={handleMarkSeen}
-                  className="text-sm text-blue-600 underline"
-                >
+                <button onClick={handleMarkSeen} className="text-sm text-blue-600 underline">
                   Mark seen
                 </button>
               </div>
             </div>
 
+            {/* NoticeList now supports infinite scroll / load more */}
             <NoticeList
               notices={visibleNotices}
               loading={noticesLoading}
@@ -346,7 +346,23 @@ export default function StudentDashboard() {
               onRefresh={refreshNotices}
               showFilters={true}
               showSearch={true}
+              hasMore={hasMoreNotices}
+              loadingMore={loadingMoreNotices}
+              onLoadMore={loadMoreNotices}
             />
+
+            {/* Load More button for user-triggered pagination */}
+            {/* {hasMoreNotices && (
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={loadMoreNotices}
+                  disabled={loadingMoreNotices}
+                  className="px-4 py-2 border rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {loadingMoreNotices ? "Loading..." : "Load More"}
+                </button>
+              </div>
+            )} */}
           </section>
         </main>
         <div className="hidden lg:block w-1/12" aria-hidden />

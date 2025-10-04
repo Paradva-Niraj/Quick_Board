@@ -1,6 +1,6 @@
-// src/pages/admin/NoticeList.jsx - Role-based access control + improved grouping/sorting
-import React, { useState, useMemo, useCallback } from "react";
-import { Search } from "lucide-react";
+// src/pages/admin/NoticeList.jsx - With Infinite Scroll
+import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { Search, Loader } from "lucide-react";
 import NoticeCard from "./NoticeCard";
 
 /* Helpers */
@@ -8,7 +8,6 @@ function friendlyDateHeading(date) {
   if (!date) return "";
   const d = new Date(date);
   const today = new Date();
-  // diffDays = d_date - today_date in days
   const diffDays = Math.floor(
     (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) -
       Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) /
@@ -23,12 +22,6 @@ function friendlyDateHeading(date) {
   });
 }
 
-/**
- * Group notices by date (YYYY-MM-DD). Return array of groups sorted by date
- * descending (today first). Unknown dates go last. Within each group:
- * - pinned items first (sorted newest -> oldest)
- * - then non-pinned items (sorted newest -> oldest)
- */
 function groupByDate(notices) {
   const map = new Map();
 
@@ -45,18 +38,15 @@ function groupByDate(notices) {
     map.get(key).items.push(n);
   }
 
-  // Convert to array and sort groups by date descending (today, yesterday, older).
   const groups = Array.from(map.values()).sort((a, b) => {
     if (a.key === "unknown" && b.key === "unknown") return 0;
-    if (a.key === "unknown") return 1; // unknown go last
+    if (a.key === "unknown") return 1;
     if (b.key === "unknown") return -1;
-    // Both have date keys (YYYY-MM-DD) — compare strings descending
     if (a.key > b.key) return -1;
     if (a.key < b.key) return 1;
     return 0;
   });
 
-  // For each group, sort items: pinned first, then by publishedAt desc
   groups.forEach((g) => {
     g.items.sort((a, b) => {
       const pa = !!(a.IsPinned ?? a.isPinned);
@@ -84,10 +74,15 @@ export default function NoticeList({
   onDelete = null,
   showSearch = true,
   showFilters = true,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore = null,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchField, setSearchField] = useState("all");
   const [filter, setFilter] = useState("all");
+  
+  const observerTarget = useRef(null);
 
   // Get current user from localStorage
   const currentUser = useMemo(() => {
@@ -102,7 +97,6 @@ export default function NoticeList({
   const userRole = (currentUser?.role || "").toString().toLowerCase();
   const userId = currentUser?.id;
 
-  // Determine delete permission per notice
   const canDeleteNotice = useCallback(
     (notice) => {
       if (userRole === "student") return false;
@@ -118,7 +112,6 @@ export default function NoticeList({
     [userRole, userId]
   );
 
-  // Normalize notices into a stable shape
   const normalized = useMemo(() => {
     return (notices || []).map((n) => ({
       ...n,
@@ -137,7 +130,6 @@ export default function NoticeList({
     }));
   }, [notices, canDeleteNotice]);
 
-  // Apply filter & search
   const filtered = useMemo(() => {
     const term = (searchTerm || "").trim().toLowerCase();
     let s = normalized;
@@ -177,8 +169,33 @@ export default function NoticeList({
     });
   }, [normalized, searchTerm, filter, searchField]);
 
-  // Group by date and sort groups (today first) and items inside groups
   const groups = useMemo(() => groupByDate(filtered), [filtered]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (!onLoadMore || !hasMore || loadingMore || loading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          console.log('Intersection detected, loading more...');
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const target = observerTarget.current;
+    if (target) {
+      observer.observe(target);
+    }
+
+    return () => {
+      if (target) {
+        observer.unobserve(target);
+      }
+    };
+  }, [onLoadMore, hasMore, loadingMore, loading]);
 
   const handleDelete = async (id) => {
     if (!onDelete) return;
@@ -238,15 +255,6 @@ export default function NoticeList({
               >
                 Pinned
               </button>
-
-              {/* <button
-                onClick={() => setFilter("recent")}
-                className={`px-3 py-1 rounded-md text-sm ${
-                  filter === "recent" ? "bg-green-600 text-white" : "text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                Recent
-              </button> */}
             </div>
           )}
 
@@ -283,37 +291,62 @@ export default function NoticeList({
         {groups.length === 0 ? (
           <div className="text-center py-8 text-gray-600">No notices found</div>
         ) : (
-          groups.map((group) => (
-            <section key={group.key} className="space-y-4">
-              <div className="text-sm text-gray-500 font-medium text-center py-2 bg-gray-50 rounded">
-                {group.heading || group.key}
-              </div>
+          <>
+            {groups.map((group) => (
+              <section key={group.key} className="space-y-4">
+                <div className="text-sm text-gray-500 font-medium text-center py-2 bg-gray-50 rounded">
+                  {group.heading || group.key}
+                </div>
 
-              <div className="grid grid-cols-1 gap-4">
-                {group.items.map((notice) => (
-                  <div key={notice.id ?? JSON.stringify(notice)}>
-                    <NoticeCard
-                      notice={{
-                        NoticeId: notice.id,
-                        NoticeTitle: notice.title,
-                        NoticeDescription: notice.description,
-                        PublishedAt: notice.publishedAt,
-                        AuthorName: notice.authorName,
-                        Image: notice.image,
-                        File: notice.file,
-                        IsPinned: notice.isPinned,
-                        Priority: notice.priority,
-                        AuthorType: notice.authorType,
-                      }}
-                      onDelete={notice.canDelete ? handleDelete : null}
-                      canDelete={notice.canDelete}
-                      showDeleteButton={notice.canDelete}
-                    />
+                <div className="grid grid-cols-1 gap-4">
+                  {group.items.map((notice) => (
+                    <div key={notice.id ?? JSON.stringify(notice)}>
+                      <NoticeCard
+                        notice={{
+                          NoticeId: notice.id,
+                          NoticeTitle: notice.title,
+                          NoticeDescription: notice.description,
+                          PublishedAt: notice.publishedAt,
+                          AuthorName: notice.authorName,
+                          Image: notice.image,
+                          File: notice.file,
+                          IsPinned: notice.isPinned,
+                          Priority: notice.priority,
+                          AuthorType: notice.authorType,
+                        }}
+                        onDelete={notice.canDelete ? handleDelete : null}
+                        canDelete={notice.canDelete}
+                        showDeleteButton={notice.canDelete}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+
+            {/* Infinite Scroll Trigger & Loading Indicator */}
+            {hasMore && (
+              <div ref={observerTarget} className="py-8">
+                {loadingMore ? (
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                    <p className="mt-2 text-sm text-gray-600">Loading more notices...</p>
                   </div>
-                ))}
+                ) : (
+                  <div className="text-center text-sm text-gray-400">
+                    Scroll down to load more
+                  </div>
+                )}
               </div>
-            </section>
-          ))
+            )}
+
+            {/* End of list message */}
+            {!hasMore && filtered.length > 0 && (
+              <div className="text-center py-4 text-sm text-gray-500">
+                You've reached the end of the list
+              </div>
+            )}
+          </>
         )}
       </div>
 

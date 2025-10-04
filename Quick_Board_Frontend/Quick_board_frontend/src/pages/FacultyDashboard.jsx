@@ -1,4 +1,4 @@
-// src/pages/FacultyDashboard.jsx - Responsive UI (CSS-only changes) + Notice badge
+// src/pages/FacultyDashboard.jsx - With Infinite Scroll Support
 import React, {
   useState,
   useEffect,
@@ -33,7 +33,6 @@ export default function FacultyDashboard() {
     }
   });
 
-  //naviagte
   const navigate = useNavigate();
 
   // Listen for localStorage changes from other tabs/windows
@@ -46,11 +45,6 @@ export default function FacultyDashboard() {
         } catch {
           console.error("Error parsing user data from localStorage");
         }
-      }
-      // If noticeCountSeen changed in another tab, we might want to re-render badge:
-      if (e.key === "noticeCountSeen") {
-        // trigger a state update by reading nothing — we will rely on stats/allNotices computed value
-        // simpler approach: force a small state flip (no-op). We'll not add extra state here to keep logic minimal.
       }
     };
     window.addEventListener("storage", onStorage);
@@ -77,7 +71,7 @@ export default function FacultyDashboard() {
   const userEmail =
     currentUser?.mail ?? currentUser?.email ?? currentUser?.FacultyMail ?? "";
 
-  // Hooks
+  // Hooks - WITH INFINITE SCROLL SUPPORT
   const {
     students,
     loading: studentsLoading,
@@ -85,14 +79,19 @@ export default function FacultyDashboard() {
     approveStudent,
     deleteStudent,
   } = useStudents();
+  
   const {
     notices,
     loading: noticesLoading,
     error: noticesError,
     refresh: refreshNotices,
     deleteNotice,
-    count: noticesCount, // if your hook exposes `count` or `count` alias; if not, it's okay — fallback used below
-  } = useNotices({ limit: 20 });
+    count: noticesCount,
+    hasMore: hasMoreNotices,
+    loadingMore: loadingMoreNotices,
+    loadMore: loadMoreNotices,
+  } = useNotices({ initialLimit: 20 });
+  
   const { courses } = useCourses();
 
   // UI State
@@ -117,16 +116,16 @@ export default function FacultyDashboard() {
       myNotices: myNotices.length,
       students: Array.isArray(students) ? students.length : 0,
       courses: Array.isArray(courses) ? courses.length : 0,
-      allNotices: Array.isArray(notices) ? notices.length : 0,
+      allNotices: typeof noticesCount === "number" ? noticesCount : (Array.isArray(notices) ? notices.length : 0),
     }),
-    [myNotices, students, courses, notices]
+    [myNotices, students, courses, notices, noticesCount]
   );
 
   // Helper: read seen count safely
   const getSeenNoticeCount = useCallback(() => {
     try {
       const v = localStorage.getItem("noticeCountSeen");
-      if (v === null) return null; // differentiate "absent" vs zero
+      if (v === null) return null;
       const n = Number(v);
       return Number.isNaN(n) ? 0 : n;
     } catch {
@@ -139,22 +138,18 @@ export default function FacultyDashboard() {
     try {
       const existing = localStorage.getItem("noticeCountSeen");
       if (existing === null) {
-        // Use the best available total: prefer noticesCount if provided by hook, else stats.allNotices
-        const total = typeof noticesCount === "number" ? noticesCount : stats.allNotices;
+        const total = stats.allNotices;
         localStorage.setItem("noticeCountSeen", String(total ?? 0));
       }
     } catch (e) {
-      // ignore storage errors
       console.error("Failed to initialize noticeCountSeen:", e);
     }
-    // We only want to run this after notices (or noticesCount) are known:
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [/* run when component mounts; intentionally leave deps minimal */]);
+  }, [stats.allNotices]);
 
   // Mark notices as seen when viewing all notices
   useEffect(() => {
     if (active === "all-notices") {
-      const total = typeof noticesCount === "number" ? noticesCount : (Array.isArray(notices) ? notices.length : null);
+      const total = stats.allNotices;
       if (total !== null) {
         try {
           localStorage.setItem("noticeCountSeen", String(total));
@@ -163,7 +158,7 @@ export default function FacultyDashboard() {
         }
       }
     }
-  }, [active, notices, noticesCount]);
+  }, [active, stats.allNotices]);
 
   // Enhanced refresh function
   const handleRefresh = useCallback(async () => {
@@ -246,18 +241,13 @@ export default function FacultyDashboard() {
     [updateCurrentUser]
   );
 
-  // ✨ SIMPLE: Notice creation handler - just refresh the list
+  // Notice creation handler
   const handleNoticeCreated = useCallback(
     async () => {
       console.log("Notice created successfully, refreshing list...");
-
-      // Close the modal immediately
       setShowCreate(false);
-
-      // Show success message
       alert("✓ Notice created successfully!");
-
-      // ✨ Simply refresh the notices list to re-render with new data
+      
       setIsRefreshing(true);
       try {
         await refreshNotices();
@@ -278,17 +268,16 @@ export default function FacultyDashboard() {
       localStorage.removeItem("user");
       navigate("/login");
     }
-  }, []);
+  }, [navigate]);
 
   // Helper to compute badge diff (number of unseen notices)
   const computeNoticeDiff = useCallback(() => {
     const seen = getSeenNoticeCount();
-    // If seen === null (absent) treat as 0, but we initialize on mount so usually not null
     const seenVal = seen === null ? 0 : seen;
-    const total = typeof noticesCount === "number" ? noticesCount : (Array.isArray(notices) ? notices.length : 0);
+    const total = stats.allNotices;
     const diff = Math.max(0, (Number(total) || 0) - Number(seenVal || 0));
     return diff;
-  }, [getSeenNoticeCount, notices, noticesCount]);
+  }, [getSeenNoticeCount, stats.allNotices]);
 
   return (
     <FacultyLayout
@@ -362,12 +351,14 @@ export default function FacultyDashboard() {
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                <div className="relative p-4 sm:p-5 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-sm hover:shadow-lg transform transition-all hover:scale-[1.02]">
+                <div className="relative p-4 sm:p-5 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-sm hover:shadow-lg transform transition-all hover:scale-[1.02] cursor-pointer"
+                  onClick={() => setActive("all-notices")}
+                >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm opacity-90">My Notices</div>
+                      <div className="text-sm opacity-90">All Notices</div>
                       <div className="text-2xl sm:text-3xl font-bold">
-                        {stats.myNotices}
+                        {stats.allNotices}
                       </div>
                     </div>
                     <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/20">
@@ -456,18 +447,21 @@ export default function FacultyDashboard() {
                   loading={noticesLoading || isRefreshing}
                   error={noticesError}
                   onDelete={handleDeleteNotice}
+                  hasMore={false}
+                  loadingMore={false}
+                  onLoadMore={null}
                 />
               </Suspense>
             </div>
           )}
 
-          {/* All Notices Panel */}
+          {/* All Notices Panel - WITH INFINITE SCROLL */}
           {active === "all-notices" && (
             <div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
                 <h3 className="text-lg font-semibold">All Notices</h3>
                 <div className="text-sm text-gray-500">
-                  {stats.allNotices} notice{stats.allNotices !== 1 ? "s" : ""}
+                  {stats.allNotices} total notice{stats.allNotices !== 1 ? "s" : ""}
                   {isRefreshing && (
                     <span className="ml-2 text-blue-600">Refreshing...</span>
                   )}
@@ -479,6 +473,9 @@ export default function FacultyDashboard() {
                   loading={noticesLoading || isRefreshing}
                   error={noticesError}
                   onDelete={handleDeleteNotice}
+                  hasMore={hasMoreNotices}
+                  loadingMore={loadingMoreNotices}
+                  onLoadMore={loadMoreNotices}
                 />
               </Suspense>
             </div>

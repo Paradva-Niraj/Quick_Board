@@ -78,7 +78,18 @@ export default function AdminDashboard() {
   const { students, loading: studentLoading, error: studentError, approveStudent, deleteStudent } = useStudents();
   const { courses, loading: courseLoading, error: courseError, createCourse, updateCourse, deleteCourse } = useCourses();
   // useNotices hook - expects it to return count (number) and deleteNotice, refresh etc.
-  const { notices, loading: noticeLoading, error: noticeError, count: noticesCount, refresh: refreshNotices, deleteNotice,count } = useNotices();
+    const { 
+    notices, 
+    loading: noticeLoading, 
+    error: noticeError, 
+    count: noticesCount, 
+    refresh: refreshNotices, 
+    deleteNotice,
+    loadMore: loadMoreNotices,
+    hasMore: hasMoreNotices,
+    loadingMore: loadingMoreNotices
+  } = useNotices();
+
   const [noticeCount, setNoticeCount] = useState(null);
 
   // UI state
@@ -563,18 +574,19 @@ export default function AdminDashboard() {
       case "notices":
         return (
           <div className="p-5">
-
             <NoticeList
               notices={notices}
               loading={noticeLoading}
               error={noticeError}
               onDelete={async (id) => {
-                // deleteNotice is provided by hook
                 const res = await deleteNotice(id);
                 if (!res.success) {
                   alert("Failed to delete notice: " + (res.error || "Unknown"));
                 }
               }}
+              hasMore={hasMoreNotices}
+              loadingMore={loadingMoreNotices}
+              onLoadMore={loadMoreNotices}
             />
           </div>
         );
